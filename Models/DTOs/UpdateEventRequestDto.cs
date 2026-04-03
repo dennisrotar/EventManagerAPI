@@ -5,6 +5,7 @@ namespace EventManagerAPI.Models.DTOs
 	public class UpdateEventRequestDto : IValidatableObject
 	{
 		[Required(ErrorMessage = "Название мероприятия обязательно!")]
+		[StringLength(int.MaxValue, MinimumLength = 1, ErrorMessage = "Название мероприятия не может быть пустым!")]
 		public string Title { get; set; } = string.Empty;
 
 		public string? Description { get; set; }

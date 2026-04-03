@@ -13,7 +13,7 @@
 
 1. Клонируйте репозиторий:
     ```bash
-    git clone <ссылка_на_ваш_репозиторий> EventManagerAPI
+    git clone https://github.com/dennisrotar/EventManagerAPI.git EventManagerAPI
     ```
 
 2. Перейдите в репозиторий
