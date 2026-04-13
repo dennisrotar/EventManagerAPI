@@ -1,4 +1,5 @@
-﻿using EventManagerAPI.Interfaces;
+﻿using EventManagerAPI.Exceptions;
+using EventManagerAPI.Interfaces;
 using EventManagerAPI.Models;
 using EventManagerAPI.Models.DTOs;
 
@@ -10,7 +11,12 @@ namespace EventManagerAPI.Services
 		private readonly List<Event> _events = new();
 		public List<Event> GetAll() => _events;
 
-		public Event? GetById(Guid id) => _events.FirstOrDefault(e => e.Id == id);
+		//public Event? GetById(Guid id) => _events.FirstOrDefault(e => e.Id == id);
+		public Event GetById(Guid id)
+		{
+			var eventEntity = _events.FirstOrDefault(ev => ev.Id == id) ?? throw new NotFoundException($"Мероприятие с ID {id} не найдено");
+			return eventEntity;
+		}
 
 		public Event Create(CreateEventRequestDto dto)
 		{
@@ -29,8 +35,9 @@ namespace EventManagerAPI.Services
 
 		public Event? Update(Guid id, UpdateEventRequestDto dto)
 		{
+			// Вызовет NotFoundException, если не найдено.
 			var existingEvent = GetById(id);
-			if (existingEvent == null) return null;
+			//if (existingEvent == null) return null;
 
 			existingEvent.Title = dto.Title;
 			existingEvent.Description = dto.Description;
@@ -42,8 +49,10 @@ namespace EventManagerAPI.Services
 
 		public bool Delete(Guid id)
 		{
-			var existingEvent = GetById(id);
-			if (existingEvent == null) return false;
+			var existingEvent = _events.FirstOrDefault(ev => ev.Id == id);
+			//var existingEvent = GetById(id);
+
+			if (existingEvent == null) { return false; }
 
 			_events.Remove(existingEvent);
 			return true;

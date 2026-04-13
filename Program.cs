@@ -1,4 +1,5 @@
 using EventManagerAPI.Interfaces;
+using EventManagerAPI.Middleware;
 using EventManagerAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +26,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Регистрация Middleware
+app.UseExceptionHandler();
 
 app.UseAuthorization();
 
