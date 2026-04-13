@@ -57,5 +57,42 @@ namespace EventManagerAPI.Services
 			_events.Remove(existingEvent);
 			return true;
 		}
+
+		public PaginatedResultDto<Event> GetFiltered(GetEventsQueryParams query)
+		{
+			var queryable = _events.AsQueryable();
+
+			// Фильтрация:  "Логическое И"
+			if (!string.IsNullOrWhiteSpace(query.Title))
+			{
+				queryable = queryable.Where(e => e.Title.Contains(query.Title, StringComparison.OrdinalIgnoreCase));
+			}
+
+			if (query.From.HasValue)
+			{
+				queryable = queryable.Where(e => e.StartAt >= query.From.Value);
+			}
+
+			if (query.To.HasValue)
+			{
+				queryable = queryable.Where(e => e.EndAt <= query.To.Value);
+			}
+
+			var totalCount = queryable.Count();
+
+			var items = queryable
+				.OrderBy(e => e.StartAt)
+				.Skip((query.Page - 1) * query.PageSize)
+				.Take(query.PageSize)
+				.ToList();
+
+			return new PaginatedResultDto<Event>
+			{
+				TotalCount = totalCount,
+				Page = query.Page,
+				PageSize = query.PageSize,
+				Items = items
+			};
+		}
 	}
 }

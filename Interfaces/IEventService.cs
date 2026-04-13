@@ -10,5 +10,8 @@ namespace EventManagerAPI.Interfaces
 		Event Create(CreateEventRequestDto dto);
 		Event? Update(Guid id, UpdateEventRequestDto dto);
 		bool Delete(Guid id);
+
+		// Новый метод для фильтрации и пагинации
+		PaginatedResultDto<Event> GetFiltered(GetEventsQueryParams query);
 	}
 }
