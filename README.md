@@ -85,7 +85,6 @@ GET /events?title=концерт&from=2024-01-01T00:00:00Z&page=2&pageSize=5
 
 ```json
 {
-"type": "https://tools.ietf.org/html/rfc7231#section-6.5.1",
 "title": "Not Found",
 "status": 404,
 "detail": "Мероприятие с ID ... не найдено",

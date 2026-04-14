@@ -1,3 +1,4 @@
+using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
 using EventManagerAPI.Middleware;
 using EventManagerAPI.Services;
@@ -8,6 +9,9 @@ builder.Services.AddControllers();
 
 // Подключаем Problem Details для красивых ошибок валидации
 builder.Services.AddProblemDetails();
+
+// Подключаем наш, глобальный обработчик исключений.
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 // Настройка Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -27,7 +31,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Регистрация Middleware
+// Включаем встроенный pipeline обработки исключений, 
+// который теперь будет делегировать работу нашему GlobalExceptionHandler
 app.UseExceptionHandler();
 
 app.UseAuthorization();

@@ -4,7 +4,7 @@ namespace EventManagerAPI.Models.DTOs
 {
 	public class UpdateEventRequestDto : IValidatableObject
 	{
-		[Required(ErrorMessage = "Название мероприятия обязательно!")]
+		// [Required(ErrorMessage = "Название мероприятия обязательно!")] - "Двойная ошибка валидации ни к чему, была сделана по рекоммендации ревьюера с первого спринта".
 		[StringLength(int.MaxValue, MinimumLength = 1, ErrorMessage = "Название мероприятия не может быть пустым!")]
 		public string Title { get; set; } = string.Empty;
 
