@@ -1,4 +1,5 @@
 ﻿using EventManagerAPI.Interfaces;
+using EventManagerAPI.Models;
 using EventManagerAPI.Models.DTOs;
 using Microsoft.AspNetCore.Mvc;
 
@@ -47,7 +48,7 @@ public class EventsController : ControllerBase
 	[HttpGet("{id:guid}")]
 	public ActionResult<EventResponseDto> GetById(Guid id)
 	{
-		var eventEntity = _eventService.GetById(id);
+		Event? eventEntity = _eventService.GetById(id);
 
 		// Убрал условие, т. к. перерь NotFoundException обрабатывает Middleware.
 		//var eventEntity = _eventService.GetById(id);
