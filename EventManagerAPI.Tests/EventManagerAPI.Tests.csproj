@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EventManagerAPI.csproj" />
+    <ProjectReference Include="..\EventManager.Api\EventManagerAPI.csproj" />
   </ItemGroup>
 
 </Project>
