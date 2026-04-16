@@ -29,7 +29,7 @@
     
 3. Запустите проект (обратите внимание на флаг `--project`, так как `.csproj` лежит во вложенной папке):
     ```bash
-    dotnet run --project EventManager.Api/EventManager.Api.csproj
+    dotnet run --project EventManager.Api/EventManagerAPI.csproj
     ```
 
 4. Откройте браузер и перейдите по адресу Swagger UI (порт указывается в консоли при запуске, например `http://localhost:<порт>/swagger).
