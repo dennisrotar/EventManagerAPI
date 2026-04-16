@@ -6,6 +6,9 @@ using Xunit;
 
 namespace EventManagerAPI.Tests;
 
+/// <summary>
+/// Класс юнит-тестов для проверки бизнес-логики сервиса EventService.
+/// </summary>
 public class EventServiceTests
 {
 	private readonly EventService _service;
@@ -17,6 +20,9 @@ public class EventServiceTests
 
 	#region Успешные сценарии CRUD
 
+	/// <summary>
+	/// Проверяет, что сервис корректно создает мероприятие и присваивает ему Id.
+	/// </summary>
 	[Fact]
 	public void Create_ShouldAddEventAndReturnIt()
 	{
@@ -37,6 +43,9 @@ public class EventServiceTests
 		Assert.Equal("Тестовое событие", result.Title);
 	}
 
+	/// <summary>
+	/// Проверяет успешное получение существующего мероприятия по ID.
+	/// </summary>
 	[Fact]
 	public void GetById_ShouldReturnEvent_WhenExists()
 	{
@@ -51,6 +60,9 @@ public class EventServiceTests
 		Assert.Equal("Найди меня", result.Title);
 	}
 
+	/// <summary>
+	/// Проверяет успешное обновление данных мероприятия.
+	/// </summary>
 	[Fact]
 	public void Update_ShouldChangeEventData_WhenExists()
 	{
@@ -65,6 +77,9 @@ public class EventServiceTests
 		Assert.Equal("Новое", result.Title);
 	}
 
+	/// <summary>
+	/// Проверяет успешное удаление существующего мероприятия (возвращает true).
+	/// </summary>
 	[Fact]
 	public void Delete_ShouldReturnTrue_WhenExists()
 	{
@@ -82,6 +97,9 @@ public class EventServiceTests
 
 	#region Неуспешные сценарии
 
+	/// <summary>
+	/// Проверяет, что попытка получить несуществующее мероприятие выбрасывает NotFoundException.
+	/// </summary>
 	[Fact]
 	public void GetById_ShouldThrowNotFoundException_WhenNotExists()
 	{
@@ -92,6 +110,9 @@ public class EventServiceTests
 		Assert.Throws<NotFoundException>(() => _service.GetById(fakeId));
 	}
 
+	/// <summary>
+	/// Проверяет, что попытка обновить несуществующее мероприятие выбрасывает NotFoundException.
+	/// </summary>
 	[Fact]
 	public void Update_ShouldThrowNotFoundException_WhenNotExists()
 	{
@@ -102,6 +123,9 @@ public class EventServiceTests
 		Assert.Throws<NotFoundException>(() => _service.Update(Guid.NewGuid(), updateDto));
 	}
 
+	/// <summary>
+	/// Проверяет, что удаление несуществующего мероприятия возвращает false (без исключения).
+	/// </summary>
 	[Fact]
 	public void Delete_ShouldReturnFalse_WhenNotExists()
 	{
@@ -113,6 +137,9 @@ public class EventServiceTests
 
 	#region Фильтрация и Пагинация
 
+	/// <summary>
+	/// Проверяет корректность фильтрации по частичному совпадению названия (без учета регистра).
+	/// </summary>
 	[Fact]
 	public void GetFiltered_FilterByTitle_ShouldReturnOnlyMatchingEvents()
 	{
@@ -130,6 +157,9 @@ public class EventServiceTests
 		Assert.Equal("Баскетбол", result.Items[0].Title);
 	}
 
+	/// <summary>
+	/// Проверяет корректность фильтрации по диапазону дат.
+	/// </summary>
 	[Fact]
 	public void GetFiltered_FilterByDates_ShouldReturnEventsInRange()
 	{
@@ -151,6 +181,9 @@ public class EventServiceTests
 		Assert.Equal("Январь", result.Items[0].Title);
 	}
 
+	/// <summary>
+	/// Проверяет, что пагинация корректно отсчитывает пропущенные элементы (Skip/Take).
+	/// </summary>
 	[Fact]
 	public void GetFiltered_Pagination_ShouldReturnCorrectPage()
 	{
@@ -171,6 +204,9 @@ public class EventServiceTests
 		Assert.Equal(2, result.Page);
 	}
 
+	/// <summary>
+	/// Проверяет одновременное применение фильтра по названию и датам (логическое И).
+	/// </summary>
 	[Fact]
 	public void GetFiltered_CombinedFiltering_ShouldWorkCorrectly()
 	{

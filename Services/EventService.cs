@@ -5,19 +5,36 @@ using EventManagerAPI.Models.DTOs;
 
 namespace EventManagerAPI.Services
 {
+	/// <summary>
+	/// Реализация интерфейса IEventService.
+	/// Хранит данные в ОЗУ (List).
+	/// Зарегистрирован в DI как Singleton.
+	/// </summary>
 	public class EventService : IEventService
 	{
-		// Данные о событиях хранятся в памяти приложения
+		/// <summary>
+		/// Список мероприятий, хранящихся в ОЗУ.
+		/// </summary>
 		private readonly List<Event> _events = new();
+
+		/// <summary>
+		/// Список всех имеющихся мероприятий в ОЗУ.
+		/// </summary>
+		/// <returns></returns>
 		public List<Event> GetAll() => _events;
 
-		//public Event? GetById(Guid id) => _events.FirstOrDefault(e => e.Id == id);
+		/// <summary>
+		/// Получить мероприятие по ID. Выбрасывает исключение, если не найдно.
+		/// </summary>
 		public Event GetById(Guid id)
 		{
 			var eventEntity = _events.FirstOrDefault(ev => ev.Id == id) ?? throw new NotFoundException($"Мероприятие с ID {id} не найдено");
 			return eventEntity;
 		}
 
+		/// <summary>
+		/// Добавить мероприятие в хранилище, генерирует новый Guid.
+		/// </summary>
 		public Event Create(CreateEventRequestDto dto)
 		{
 			var newEvent = new Event
@@ -33,11 +50,13 @@ namespace EventManagerAPI.Services
 			return newEvent;
 		}
 
+		/// <summary>
+		/// Полностью обновить данные мероприятия. Выбрасывает исключение, если не найдено.
+		/// </summary>
 		public Event? Update(Guid id, UpdateEventRequestDto dto)
 		{
 			// Вызовет NotFoundException, если не найдено.
 			var existingEvent = GetById(id);
-			//if (existingEvent == null) return null;
 
 			existingEvent.Title = dto.Title;
 			existingEvent.Description = dto.Description;
@@ -47,10 +66,12 @@ namespace EventManagerAPI.Services
 			return existingEvent;
 		}
 
+		/// <summary>
+		/// Удалить мероприятие из хранилища.
+		/// </summary>
 		public bool Delete(Guid id)
 		{
 			var existingEvent = _events.FirstOrDefault(ev => ev.Id == id);
-			//var existingEvent = GetById(id);
 
 			if (existingEvent == null) { return false; }
 
@@ -58,6 +79,9 @@ namespace EventManagerAPI.Services
 			return true;
 		}
 
+		/// <summary>
+		/// Сформироват и получить выборку мероприятий с использованием LINQ (Where, OrderBy, Skip, Take).
+		/// </summary>
 		public PaginatedResultDto<Event> GetFiltered(GetEventsQueryParams query)
 		{
 			var queryable = _events.AsQueryable();

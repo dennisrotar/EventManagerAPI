@@ -4,6 +4,10 @@ using System.Text.Json;
 
 namespace EventManagerAPI.Exceptions;
 
+/// <summary>
+/// Глобальный обработчик исключений.
+/// Перехватывает все неперехваченные исключения и формирует единый Json-ответ по стандарту RFC 7807 (ProblemDetails).
+/// </summary>
 public class GlobalExceptionHandler : IExceptionHandler
 {
 	private readonly ILogger<GlobalExceptionHandler> _logger;
@@ -13,6 +17,10 @@ public class GlobalExceptionHandler : IExceptionHandler
 		_logger = logger;
 	}
 
+	/// <summary>
+	/// Основной метод обработчки исключения.
+	/// Вызывается фреймворком автоматически.
+	/// </summary>
 	public async ValueTask<bool> TryHandleAsync(
 		HttpContext httpContext,
 		Exception exception,
@@ -34,17 +42,19 @@ public class GlobalExceptionHandler : IExceptionHandler
 			Status = statusCode,
 			Title = statusCode == 404 ? "Not Found" : "Internal Server Error",
 			Detail = exception.Message,
-			Instance = httpContext.Request.Path
+			Instance = httpContext.Request.Path,
+			Type = statusCode == 404
+						? "https://tools.ietf.org/html/rfc9110#section-15.5.5"
+						: "https://tools.ietf.org/html/rfc9110#section-15.6.1"
 		};
 
+		problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
+
 		httpContext.Response.StatusCode = statusCode;
-		httpContext.Response.ContentType = "application/problem+json";
+		// WriteAsJsonAsync автоматически добавит нужные заголовки и сериализует объект в точно таком же формате,
+		// как это делает встроеный валидатор.
+		await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
 
-		// Сериализуем и пишем ответ
-		var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-		await httpContext.Response.WriteAsync(JsonSerializer.Serialize(problemDetails, options), cancellationToken);
-
-		// Возвращаем true, что означает "ошибка обработана нами, фреймворк ничего не делай"
 		return true;
 	}
 }
