@@ -69,14 +69,12 @@ namespace EventManagerAPI.Services
 		/// <summary>
 		/// Удалить мероприятие из хранилища.
 		/// </summary>
-		public bool Delete(Guid id)
+		public void Delete(Guid id)
 		{
-			var existingEvent = _events.FirstOrDefault(ev => ev.Id == id);
-
-			if (existingEvent == null) { return false; }
+			// Вызовет NotFoundException, если не найдено
+			var existingEvent = GetById(id);
 
 			_events.Remove(existingEvent);
-			return true;
 		}
 
 		/// <summary>

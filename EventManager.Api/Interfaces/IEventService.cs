@@ -42,8 +42,8 @@ namespace EventManagerAPI.Interfaces
 		/// Удалить мероприятие по идентификатору.
 		/// </summary>
 		/// <param name="id"> Идентификатор удаляемого мероприятия. </param>
-		/// <returns> True, если удаление успешно; False, если мероприятие не найдено. </returns>
-		bool Delete(Guid id);
+		/// <exception cref="NotFoundException">Выбрасывается, если мероприятие не найдено.</exception>
+		void Delete(Guid id);
 
 		/// <summary>
 		/// Получить список мероприятий с применением фильтрации, сортировки и пагинации.

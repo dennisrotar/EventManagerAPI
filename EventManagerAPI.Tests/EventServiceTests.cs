@@ -78,19 +78,20 @@ public class EventServiceTests
 	}
 
 	/// <summary>
-	/// Проверяет успешное удаление существующего мероприятия (возвращает true).
+	/// Проверяет успешное удаление существующего мероприятия.
 	/// </summary>
 	[Fact]
-	public void Delete_ShouldReturnTrue_WhenExists()
+	public void Delete_ShouldRemoveEvent_WhenExists()
 	{
 		// Arrange
-		var created = _service.Create(new CreateEventRequestDto { Title = "Для удаления", StartAt = DateTime.UtcNow, EndAt = DateTime.UtcNow.AddHours(1) });
+		var created = _service.Create(new CreateEventRequestDto { Title = "To Delete", StartAt = DateTime.UtcNow, EndAt = DateTime.UtcNow.AddHours(1) });
 
 		// Act
-		var result = _service.Delete(created.Id);
+		_service.Delete(created.Id);
 
 		// Assert
-		Assert.True(result);
+		// Проверяем, что после удаления сервис больше не может найти событие (кидает исключение)
+		Assert.Throws<NotFoundException>(() => _service.GetById(created.Id));
 	}
 
 	#endregion
@@ -124,13 +125,16 @@ public class EventServiceTests
 	}
 
 	/// <summary>
-	/// Проверяет, что удаление несуществующего мероприятия возвращает false (без исключения).
+	/// Проверяет, удаление несуществующего мероприятия, в случае если мероприятие не найдено, кидает исключение.
 	/// </summary>
 	[Fact]
-	public void Delete_ShouldReturnFalse_WhenNotExists()
+	public void Delete_ShouldThrowNotFoundException_WhenNotExists()
 	{
+		// Arrange
+		var fakeId = Guid.NewGuid();
+
 		// Act & Assert
-		Assert.False(_service.Delete(Guid.NewGuid()));
+		Assert.Throws<NotFoundException>(() => _service.Delete(fakeId));
 	}
 
 	#endregion

@@ -1,12 +1,13 @@
 ﻿using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using System.Text.Json;
 
 namespace EventManagerAPI.Exceptions;
 
 /// <summary>
 /// Глобальный обработчик исключений.
-/// Перехватывает все неперехваченные исключения и формирует единый Json-ответ по стандарту RFC 7807 (ProblemDetails).
+/// Отвечает СТРОГО за перехват необработанных бизнес-исключений (BaseApiException) 
+/// и непредвиденных ошибок сервера (Exception).
+/// Ошибки валидации (400) обрабатываются слоем выше (ApiBehaviorOptions в Program.cs) и сюда не попадают.
 /// </summary>
 public class GlobalExceptionHandler : IExceptionHandler
 {
@@ -17,42 +18,46 @@ public class GlobalExceptionHandler : IExceptionHandler
 		_logger = logger;
 	}
 
-	/// <summary>
-	/// Основной метод обработчки исключения.
-	/// Вызывается фреймворком автоматически.
-	/// </summary>
 	public async ValueTask<bool> TryHandleAsync(
 		HttpContext httpContext,
 		Exception exception,
 		CancellationToken cancellationToken)
 	{
-		// Логируем ошибку
 		_logger.LogError(exception, "Произошла ошибка: {Message}", exception.Message);
 
-		// Определяем статус код
-		var statusCode = exception switch
-		{
-			NotFoundException => StatusCodes.Status404NotFound,
-			_ => StatusCodes.Status500InternalServerError
-		};
+		ProblemDetails problemDetails;
 
-		// Формируем единый ответ (используем встроенный класс ProblemDetails)
-		var problemDetails = new ProblemDetails
+		// Проверяем, является ли ошибка нашей бизнес-ошибкой (наследником BaseApiException)
+		if (exception is BaseApiException apiException)
 		{
-			Status = statusCode,
-			Title = statusCode == 404 ? "Not Found" : "Internal Server Error",
-			Detail = exception.Message,
-			Instance = httpContext.Request.Path,
-			Type = statusCode == 404
-						? "https://tools.ietf.org/html/rfc9110#section-15.5.5"
-						: "https://tools.ietf.org/html/rfc9110#section-15.6.1"
-		};
+			// Берем статусы ПРЯМО из самого исключения (масштабируемость)
+			problemDetails = new ProblemDetails
+			{
+				Status = apiException.StatusCode,
+				Title = apiException.Title,
+				Detail = apiException.Message,
+				Type = apiException.Type,
+				Instance = httpContext.Request.Path
+			};
+		}
+		else
+		{
+			// Если это что-то непредвиденное (например, ошибка доступа к БД в будущем)
+			problemDetails = new ProblemDetails
+			{
+				Status = StatusCodes.Status500InternalServerError,
+				Title = "Internal Server Error",
+				Detail = "Произошла непредвиденная ошибка на сервере.", // Для 500 не стоит светить детали exception.Message
+				Type = "https://tools.ietf.org/html/rfc9110#section-15.6.1",
+				Instance = httpContext.Request.Path
+			};
+		}
 
+		// Добавляем traceId для единообразия с ответами 400 от ASP.NET
 		problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
 
-		httpContext.Response.StatusCode = statusCode;
-		// WriteAsJsonAsync автоматически добавит нужные заголовки и сериализует объект в точно таком же формате,
-		// как это делает встроеный валидатор.
+		httpContext.Response.StatusCode = problemDetails.Status.Value;
+
 		await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
 
 		return true;

@@ -107,13 +107,11 @@ public class EventsController : ControllerBase
 	[HttpDelete("{id:guid}")]
 	public ActionResult Delete(Guid id)
 	{
-		if (!_eventService.Delete(id))
-		{
-			// Для единообразия через Middleware
-			throw new Exceptions.NotFoundException($"Мероприятие с ID {id} не найдено.");
-		}
+		// Удаляем проверки if. Если объекта нет, сервис кинет NotFoundException, 
+		// который перехватит GlobalExceptionHandler и вернет 404.
+		_eventService.Delete(id);
 
-		return NoContent(); // 204 No Content - стандарт для успешного DELETE
+		return NoContent();
 	}
 
 	/// <summary>
