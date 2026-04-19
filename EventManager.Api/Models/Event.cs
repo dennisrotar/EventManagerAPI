@@ -1,5 +1,9 @@
 ﻿namespace EventManagerAPI.Models
 {
+	/// <summary>
+	/// Доменная модель мероприятия.
+	/// Представляет сущность, хранящуюся в памяти приложения.
+	/// </summary>
 	public class Event
 	{
 		public Guid Id { get; set; }
