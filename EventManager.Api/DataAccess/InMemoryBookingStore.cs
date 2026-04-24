@@ -1,6 +1,6 @@
-using EventManager.Api.Entities;
+using EventManagerAPI.Entities;
 
-namespace EventManager.Api.DataAccess;
+namespace EventManagerAPI.DataAccess;
 
 /// <summary>
 /// Реализация in-memory хранилища бронирований.

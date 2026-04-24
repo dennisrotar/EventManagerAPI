@@ -1,4 +1,4 @@
-namespace EventManager.Api.Entities;
+namespace EventManagerAPI.Entities;
 
 /// <summary>
 /// Доменная модель бронирования мероприятия.
