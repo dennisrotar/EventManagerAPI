@@ -3,13 +3,19 @@ using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
 using EventManagerAPI.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Подключаем Problem Details для красивых ошибок валидации
 builder.Services.AddProblemDetails();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+	.AddJsonOptions(options =>
+	{
+		// Заставляем сериализатор возвращать enum'ы в виде строк ("Confirmed" вместо 1)
+		options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+	});
 
 // Настройка единого формата для ошибок 400 (валидация)
 builder.Services.Configure<ApiBehaviorOptions>(options =>
