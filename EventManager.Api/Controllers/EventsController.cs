@@ -1,6 +1,8 @@
 ﻿using EventManagerAPI.Interfaces;
 using EventManagerAPI.Models;
 using EventManagerAPI.Models.DTOs;
+using EventManagerAPI.Models.DTOs.Booking;
+using EventManagerAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventManagerAPI.Controllers;
@@ -14,10 +16,12 @@ namespace EventManagerAPI.Controllers;
 public class EventsController : ControllerBase
 {
 	private readonly IEventService _eventService;
+	private readonly IBookingService _bookingService;
 
-	public EventsController(IEventService eventService)
+	public EventsController(IEventService eventService, IBookingService bookingService)
 	{
 		_eventService = eventService;
+		_bookingService = bookingService;
 	}
 
 	/// <summary>
@@ -81,6 +85,23 @@ public class EventsController : ControllerBase
 			nameof(GetById),
 			new { id = createdEvent.Id },
 			MapToResponse(createdEvent));
+	}
+
+	/// <summary>
+	/// Создать бронь для указанного мероприятия (быстрый ответ + отложенная обработка).
+	/// </summary>
+	[HttpPost("{id:guid}/book")]
+	public async Task<ActionResult<BookingResponseDto>> CreateBooking(Guid id)
+	{
+		var bookingDto = await _bookingService.CreateBookingAsync(id);
+
+		// Возвращаем 202 Accepted
+		// Используем CreatedAtAction для автоматической генерации заголовка Location
+		return AcceptedAtAction(
+			actionName: nameof(BookingsController.GetBooking),
+			controllerName: nameof(BookingsController).Replace("Controller", ""),
+			routeValues: new { id = bookingDto.Id },
+			value: bookingDto);
 	}
 
 	/// <summary>

@@ -1,14 +1,21 @@
+using EventManagerAPI.DataAccess;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
 using EventManagerAPI.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Подключаем Problem Details для красивых ошибок валидации
 builder.Services.AddProblemDetails();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+	.AddJsonOptions(options =>
+	{
+		// Заставляем сериализатор возвращать enum'ы в виде строк ("Confirmed" вместо 1)
+		options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+	});
 
 // Настройка единого формата для ошибок 400 (валидация)
 builder.Services.Configure<ApiBehaviorOptions>(options =>
@@ -39,6 +46,15 @@ builder.Services.AddSwaggerGen();
 
 // Регистрация сервиса в DI как Singleton (чтобы список событий не обнулялся)
 builder.Services.AddSingleton<IEventService, EventService>();
+
+// Регистрация хранилища (Singleton, так как данные в памяти)
+builder.Services.AddSingleton<IBookingStore, InMemoryBookingStore>();
+
+// Регистрация сервиса бронирований (Singleton, чтобы работал с Singleton-хранилищем)
+builder.Services.AddSingleton<IBookingService, BookingService>();
+
+// Регистрация фонового сервиса
+builder.Services.AddHostedService<BookingBackgroundService>();
 
 var app = builder.Build();
 
