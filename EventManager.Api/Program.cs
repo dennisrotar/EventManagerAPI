@@ -1,3 +1,4 @@
+using EventManagerAPI.DataAccess;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
 using EventManagerAPI.Services;
@@ -39,6 +40,15 @@ builder.Services.AddSwaggerGen();
 
 // Регистрация сервиса в DI как Singleton (чтобы список событий не обнулялся)
 builder.Services.AddSingleton<IEventService, EventService>();
+
+// Регистрация хранилища (Singleton, так как данные в памяти)
+builder.Services.AddSingleton<IBookingStore, InMemoryBookingStore>();
+
+// Регистрация сервиса бронирований (Singleton, чтобы работал с Singleton-хранилищем)
+builder.Services.AddSingleton<IBookingService, BookingService>();
+
+// Регистрация фонового сервиса
+builder.Services.AddHostedService<BookingBackgroundService>();
 
 var app = builder.Build();
 
