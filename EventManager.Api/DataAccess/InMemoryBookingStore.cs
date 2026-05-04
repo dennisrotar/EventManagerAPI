@@ -1,4 +1,4 @@
-using EventManagerAPI.Entities;
+using EventManagerAPI.Models.Entities;
 
 namespace EventManagerAPI.DataAccess;
 
@@ -7,7 +7,7 @@ namespace EventManagerAPI.DataAccess;
 /// </summary>
 public class InMemoryBookingStore : IBookingStore
 {
-	private readonly List<Booking> _bookings = new();
+	private readonly List<Booking> _bookings = [];
 
 	public void Add(Booking booking) => _bookings.Add(booking);
 

@@ -1,4 +1,4 @@
-using EventManagerAPI.Entities;
+using EventManagerAPI.Models.Entities;
 
 namespace EventManagerAPI.DataAccess;
 

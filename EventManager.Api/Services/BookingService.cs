@@ -1,8 +1,8 @@
 using EventManagerAPI.DataAccess;
 using EventManagerAPI.Models.DTOs.Booking;
-using EventManagerAPI.Entities;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
+using EventManagerAPI.Models.Entities;
 
 namespace EventManagerAPI.Services;
 
@@ -16,8 +16,8 @@ public class BookingService : IBookingService
 
 	public BookingService(IBookingStore bookingStore, IEventService eventService)
 	{
-		_bookingStore = bookingStore;
-		_eventService = eventService;
+		_bookingStore = bookingStore ?? throw new ArgumentNullException(nameof(bookingStore));
+		_eventService = eventService ?? throw new ArgumentNullException(nameof(eventService));
 	}
 
 	/// <summary>

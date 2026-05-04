@@ -1,9 +1,11 @@
 ﻿using EventManagerAPI.DataAccess;
 using EventManagerAPI.Models.DTOs.Booking;
+using EventManagerAPI.Models.Entities;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Models.DTOs;
 using EventManagerAPI.Services;
 using Xunit;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EventManagerAPI.Tests;
 
@@ -15,8 +17,12 @@ public class BookingServiceTests
 
 	public BookingServiceTests()
 	{
+		// Создаем реальное хранилище событий для тестов
+		var eventStore = new InMemoryEventStore();
+
+		_eventService = new EventService(eventStore, NullLogger<EventService>.Instance);
+
 		_store = new InMemoryBookingStore();
-		_eventService = new EventService();
 		_bookingService = new BookingService(_store, _eventService);
 	}
 

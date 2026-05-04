@@ -1,120 +1,110 @@
-﻿using EventManagerAPI.Exceptions;
+﻿using EventManagerAPI.DataAccess;
+using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
-using EventManagerAPI.Models;
 using EventManagerAPI.Models.DTOs;
+using EventManagerAPI.Models.Entities;
 
-namespace EventManagerAPI.Services
+namespace EventManagerAPI.Services;
+
+/// <summary>
+/// Реализация доменного сервиса мероприятий.
+/// Зарегистрирована как Scoped, так как не имеет состояния и привязана к обработке конкретного запроса.
+/// </summary>
+public class EventService : IEventService
 {
+	private readonly IEventStore _eventStore;
+	private readonly ILogger<EventService> _logger;
+
 	/// <summary>
-	/// Реализация интерфейса IEventService.
-	/// Хранит данные в ОЗУ (List).
-	/// Зарегистрирован в DI как Singleton.
+	/// Инициализирует новый экземпляр <see cref="EventService"/> с внедрением зависимостей.
 	/// </summary>
-	public class EventService : IEventService
+	/// <param name="eventStore">Репозиторий для доступа к данным.</param>
+	/// <param name="logger">Логгер для записи отладочной информации.</param>
+	public EventService(IEventStore eventStore, ILogger<EventService> logger)
 	{
-		/// <summary>
-		/// Список мероприятий, хранящихся в ОЗУ.
-		/// </summary>
-		private readonly List<Event> _events = new();
-
-		/// <summary>
-		/// Список всех имеющихся мероприятий в ОЗУ.
-		/// </summary>
-		/// <returns></returns>
-		public List<Event> GetAll() => _events;
-
-		/// <summary>
-		/// Получить мероприятие по ID. Выбрасывает исключение, если не найдно.
-		/// </summary>
-		public Event GetById(Guid id)
-		{
-			var eventEntity = _events.FirstOrDefault(ev => ev.Id == id) ?? throw new NotFoundException($"Мероприятие с ID {id} не найдено");
-			return eventEntity;
-		}
-
-		/// <summary>
-		/// Добавить мероприятие в хранилище, генерирует новый Guid.
-		/// </summary>
-		public Event Create(CreateEventRequestDto dto)
-		{
-			var newEvent = new Event
-			{
-				Id = Guid.NewGuid(),
-				Title = dto.Title,
-				Description = dto.Description,
-				StartAt = dto.StartAt,
-				EndAt = dto.EndAt
-			};
-
-			_events.Add(newEvent);
-			return newEvent;
-		}
-
-		/// <summary>
-		/// Полностью обновить данные мероприятия. Выбрасывает исключение, если не найдено.
-		/// </summary>
-		public Event? Update(Guid id, UpdateEventRequestDto dto)
-		{
-			// Вызовет NotFoundException, если не найдено.
-			var existingEvent = GetById(id);
-
-			existingEvent.Title = dto.Title;
-			existingEvent.Description = dto.Description;
-			existingEvent.StartAt = dto.StartAt;
-			existingEvent.EndAt = dto.EndAt;
-
-			return existingEvent;
-		}
-
-		/// <summary>
-		/// Удалить мероприятие из хранилища.
-		/// </summary>
-		public void Delete(Guid id)
-		{
-			// Вызовет NotFoundException, если не найдено
-			var existingEvent = GetById(id);
-
-			_events.Remove(existingEvent);
-		}
-
-		/// <summary>
-		/// Сформироват и получить выборку мероприятий с использованием LINQ (Where, OrderBy, Skip, Take).
-		/// </summary>
-		public PaginatedResultDto<Event> GetFiltered(GetEventsQueryParams query)
-		{
-			var queryable = _events.AsQueryable();
-
-			// Фильтрация:  "Логическое И"
-			if (!string.IsNullOrWhiteSpace(query.Title))
-			{
-				queryable = queryable.Where(e => e.Title.Contains(query.Title, StringComparison.OrdinalIgnoreCase));
-			}
-
-			if (query.From.HasValue)
-			{
-				queryable = queryable.Where(e => e.StartAt >= query.From.Value);
-			}
-
-			if (query.To.HasValue)
-			{
-				queryable = queryable.Where(e => e.EndAt <= query.To.Value);
-			}
-
-			var totalCount = queryable.Count();
-
-			var items = queryable
-				.OrderBy(e => e.StartAt)
-				.Skip((query.Page - 1) * query.PageSize)
-				.Take(query.PageSize)
-				.ToList();
-
-			return new PaginatedResultDto<Event>
-			{
-				TotalCount = totalCount,
-				Page = query.Page,
-				PageSize = query.PageSize,
-				Items = items
-			};
-		}
+		_eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
+
+	public PaginatedResultDto<EventResponseDto> GetFiltered(GetEventsQueryParams query)
+	{
+		_logger.LogInformation("Запрос списка событий. Фильтры: Title={Title}, From={From}, To={To}, Page={Page}, Size={Size}", query.Title, query.From, query.To, query.Page, query.PageSize);
+
+		var (totalCount, items) = _eventStore.GetFiltered(query);
+		return new PaginatedResultDto<EventResponseDto>
+		{
+			TotalCount = totalCount,
+			Page = query.Page,
+			PageSize = query.PageSize,
+			Items = items.Select(MapToResponse).ToList()
+		};
+	}
+
+	public EventResponseDto GetById(Guid id)
+	{
+		_logger.LogDebug("Поиск события по ID: {Id}", id);
+
+		var eventEntity = _eventStore.GetById(id)
+			?? throw new NotFoundException($"Мероприятие с ID {id} не найдено.");
+		return MapToResponse(eventEntity);
+	}
+
+	public EventResponseDto Create(CreateEventRequestDto dto)
+	{
+		_logger.LogInformation("Создание нового события с заголовком: {Title}", dto.Title);
+
+		var newEvent = new Event
+		{
+			Id = Guid.NewGuid(),
+			Title = dto.Title,
+			Description = dto.Description,
+			StartAt = dto.StartAt,
+			EndAt = dto.EndAt
+		};
+
+		_eventStore.Add(newEvent);
+
+		_logger.LogDebug("Событие создано с ID: {Id}", newEvent.Id);
+
+		return MapToResponse(newEvent);
+	}
+
+	public void Update(Guid id, UpdateEventRequestDto dto)
+	{
+		_logger.LogInformation("Обновление события с ID: {Id}", id);
+
+		var existingEvent = _eventStore.GetById(id)
+			?? throw new NotFoundException($"Мероприятие с ID {id} не найдено.");
+
+		existingEvent.Title = dto.Title;
+		existingEvent.Description = dto.Description;
+		existingEvent.StartAt = dto.StartAt;
+		existingEvent.EndAt = dto.EndAt;
+		_eventStore.Update(existingEvent);
+	}
+
+	public void Delete(Guid id)
+	{
+		_logger.LogInformation("Удаление события с ID: {Id}", id);
+
+		var existingEvent = _eventStore.GetById(id)
+			?? throw new NotFoundException($"Мероприятие с ID {id} не найдено.");
+		_eventStore.Remove(existingEvent);
+
+		_logger.LogDebug("Событие с ID: {Id} успешно удалено", id);
+	}
+
+	/// <summary>
+	/// Вспомогательный метод для маппинга доменной сущности в DTO ответа.
+	/// </summary>
+	/// <param name="e">Доменная сущность Event.</param>
+	/// <returns>DTO для клиентского ответа.</returns>
+	private static EventResponseDto MapToResponse(Event e) => new()
+	{
+		Id = e.Id,
+		Title = e.Title,
+		Description = e.Description,
+		StartAt = e.StartAt,
+		EndAt = e.EndAt
+	};
 }

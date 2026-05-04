@@ -1,7 +1,6 @@
 ﻿using EventManagerAPI.Interfaces;
 using EventManagerAPI.Models.DTOs;
 using EventManagerAPI.Models.DTOs.Booking;
-using EventManagerAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventManagerAPI.Controllers;
@@ -17,10 +16,14 @@ public class EventsController : ControllerBase
 	private readonly IEventService _eventService;
 	private readonly IBookingService _bookingService;
 
-	public EventsController(IEventService eventService, IBookingService bookingService)
+	private readonly ILogger<EventsController> _logger;
+
+	public EventsController(IEventService eventService, IBookingService bookingService, ILogger<EventsController> logger)
 	{
 		_eventService = eventService;
 		_bookingService = bookingService;
+		
+		_logger = logger;
 	}
 
 	/// <summary>
@@ -33,24 +36,13 @@ public class EventsController : ControllerBase
 	[HttpGet]
 	public ActionResult<PaginatedResultDto<EventResponseDto>> GetAll([FromQuery] GetEventsQueryParams query)
 	{
-		// Явная проверка ModelState для Query-параметров
+		_logger.LogDebug("Входящий GET запрос на /events");
+
 		if (!ModelState.IsValid)
-		{
-			// Вернёт стандартный 400 Bad Request в формате ProblemDetails
 			return ValidationProblem(ModelState);
-		}
 
-		var result = _eventService.GetFiltered(query);
-
-		var response = new PaginatedResultDto<EventResponseDto>
-		{
-			TotalCount = result.TotalCount,
-			Page = result.Page,
-			PageSize = result.PageSize,
-			Items = result.Items.Select(MapToResponse).ToList()
-		};
-
-		return Ok(response);
+		// Сервис УЖЕ возвращает готовый DTO с пагинацией, маппинг не нужен!
+		return Ok(_eventService.GetFiltered(query));
 	}
 
 	/// <summary>
@@ -63,9 +55,10 @@ public class EventsController : ControllerBase
 	[HttpGet("{id:guid}")]
 	public ActionResult<EventResponseDto> GetById(Guid id)
 	{
-		Event? eventEntity = _eventService.GetById(id);
+		_logger.LogDebug("Входящий GET запрос на /events/{Id}", id);
 
-		return Ok(MapToResponse(eventEntity));
+		// Сервис УЖЕ возвращает готовый DTO
+		return Ok(_eventService.GetById(id));
 	}
 
 	/// <summary>
@@ -78,12 +71,12 @@ public class EventsController : ControllerBase
 	[HttpPost]
 	public ActionResult<EventResponseDto> Create([FromBody] CreateEventRequestDto dto)
 	{
+		_logger.LogDebug("Входящий POST запрос на /events");
+
+		// Сервис возвращает готовый DTO созданного события
 		var createdEvent = _eventService.Create(dto);
 
-		return CreatedAtAction(
-			nameof(GetById),
-			new { id = createdEvent.Id },
-			MapToResponse(createdEvent));
+		return CreatedAtAction(nameof(GetById), new { id = createdEvent.Id }, createdEvent);
 	}
 
 	/// <summary>
@@ -114,7 +107,11 @@ public class EventsController : ControllerBase
 	[HttpPut("{id:guid}")]
 	public ActionResult Update(Guid id, [FromBody] UpdateEventRequestDto dto)
 	{
+		_logger.LogDebug("Входящий PUT запрос на /events/{Id}", id);
+
+		// Метод теперь void, просто вызываем его
 		_eventService.Update(id, dto);
+
 		return NoContent();
 	}
 
@@ -127,22 +124,11 @@ public class EventsController : ControllerBase
 	[HttpDelete("{id:guid}")]
 	public ActionResult Delete(Guid id)
 	{
-		// Удаляем проверки if. Если объекта нет, сервис кинет NotFoundException, 
-		// который перехватит GlobalExceptionHandler и вернет 404.
+		_logger.LogDebug("Входящий DELETE запрос на /events/{Id}", id);
+
+		// Метод теперь void, просто вызываем его
 		_eventService.Delete(id);
 
 		return NoContent();
 	}
-
-	/// <summary>
-	/// Вспомогательный метод для маппинга (чтобы не тянуть сторонние библиотеки).
-	/// </summary>
-	private static EventResponseDto MapToResponse(Models.Event e) => new()
-	{
-		Id = e.Id,
-		Title = e.Title,
-		Description = e.Description,
-		StartAt = e.StartAt,
-		EndAt = e.EndAt
-	};
 }

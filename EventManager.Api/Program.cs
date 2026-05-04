@@ -44,14 +44,15 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Регистрация сервиса в DI как Singleton (чтобы список событий не обнулялся)
-builder.Services.AddSingleton<IEventService, EventService>();
-
-// Регистрация хранилища (Singleton, так как данные в памяти)
+// Инфраструктура (хранилища - Singleton)
+// Хранят состояние в памяти. Должны быть единым экземпляром для всего приложения.
+builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
 builder.Services.AddSingleton<IBookingStore, InMemoryBookingStore>();
 
-// Регистрация сервиса бронирований (Singleton, чтобы работал с Singleton-хранилищем)
-builder.Services.AddSingleton<IBookingService, BookingService>();
+// Доменные сервисы (Scoped)
+// Не имеют состояния, работают с хранилищами. Живут в рамках одного HTTP-запроса.
+builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<IBookingService, BookingService>();
 
 // Регистрация фонового сервиса
 builder.Services.AddHostedService<BookingBackgroundService>();
