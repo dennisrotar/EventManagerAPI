@@ -1,6 +1,5 @@
 ﻿using EventManagerAPI.DataAccess;
 using EventManagerAPI.Models.DTOs.Booking;
-using EventManagerAPI.Entities;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Models.DTOs;
 using EventManagerAPI.Services;

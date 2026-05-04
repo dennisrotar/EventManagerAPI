@@ -1,5 +1,4 @@
 ﻿using EventManagerAPI.Interfaces;
-using EventManagerAPI.Models;
 using EventManagerAPI.Models.DTOs;
 using EventManagerAPI.Models.DTOs.Booking;
 using EventManagerAPI.Services;
