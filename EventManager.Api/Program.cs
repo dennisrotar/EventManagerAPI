@@ -1,14 +1,21 @@
+using EventManagerAPI.DataAccess;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
 using EventManagerAPI.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Подключаем Problem Details для красивых ошибок валидации
 builder.Services.AddProblemDetails();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+	.AddJsonOptions(options =>
+	{
+		// Заставляем сериализатор возвращать enum'ы в виде строк ("Confirmed" вместо 1)
+		options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+	});
 
 // Настройка единого формата для ошибок 400 (валидация)
 builder.Services.Configure<ApiBehaviorOptions>(options =>
@@ -37,8 +44,18 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Регистрация сервиса в DI как Singleton (чтобы список событий не обнулялся)
-builder.Services.AddSingleton<IEventService, EventService>();
+// Инфраструктура (хранилища - Singleton)
+// Хранят состояние в памяти. Должны быть единым экземпляром для всего приложения.
+builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
+builder.Services.AddSingleton<IBookingStore, InMemoryBookingStore>();
+
+// Доменные сервисы (Scoped)
+// Не имеют состояния, работают с хранилищами. Живут в рамках одного HTTP-запроса.
+builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<IBookingService, BookingService>();
+
+// Регистрация фонового сервиса
+builder.Services.AddHostedService<BookingBackgroundService>();
 
 var app = builder.Build();
 

@@ -1,4 +1,4 @@
-﻿namespace EventManagerAPI.Models
+﻿namespace EventManagerAPI.Models.Entities
 {
 	/// <summary>
 	/// Доменная модель мероприятия.

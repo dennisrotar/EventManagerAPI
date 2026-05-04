@@ -1,237 +1,170 @@
-﻿using EventManagerAPI.Exceptions;
-using EventManagerAPI.Models;
+﻿using EventManagerAPI.DataAccess;
+using EventManagerAPI.Exceptions;
 using EventManagerAPI.Models.DTOs;
+using EventManagerAPI.Models.Entities;
 using EventManagerAPI.Services;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Xunit;
 
-namespace EventManagerAPI.Tests;
+namespace EventManager.Api.Tests;
 
 /// <summary>
-/// Класс юнит-тестов для проверки бизнес-логики сервиса EventService.
+/// Класс юнит-тестов для доменного сервиса EventService.
+/// Использует фреймворк Moq для полной изоляции тестируемой логики 
+/// от инфраструктурного слоя (репозитория IEventStore).
 /// </summary>
 public class EventServiceTests
 {
+	private readonly Mock<IEventStore> _mockStore;
 	private readonly EventService _service;
 
 	public EventServiceTests()
 	{
-		_service = new EventService();
+		_mockStore = new Mock<IEventStore>();
+		// Передаем валидную заглушку логгера (NullLogger)
+		_service = new EventService(_mockStore.Object, NullLogger<EventService>.Instance);
 	}
 
-	#region Успешные сценарии CRUD
+	/// <summary>
+	/// Вспомогательный метод для создания валидного DTO.
+	/// Исключает дублирование кода в блоке Arrange тестов.
+	/// </summary>
+	/// <returns>Валидный объект CreateEventRequestDto с датами в будущем.</returns>
+	private static CreateEventRequestDto GetValidDto() => new()
+	{
+		Title = "Тестище",
+		StartAt = DateTime.UtcNow.AddHours(1),
+		EndAt = DateTime.UtcNow.AddHours(2)
+	};
 
 	/// <summary>
-	/// Проверяет, что сервис корректно создает мероприятие и присваивает ему Id.
+	/// Проверяет, что метод Create корректно генерирует Id, 
+	/// передает сущность в репозиторий и возвращает корректно замапленный DTO.
 	/// </summary>
 	[Fact]
-	public void Create_ShouldAddEventAndReturnIt()
+	public void Create_ShouldAddEventAndReturnDto()
 	{
 		// Arrange
-		var dto = new CreateEventRequestDto
-		{
-			Title = "Тестовое событие",
-			StartAt = DateTime.UtcNow,
-			EndAt = DateTime.UtcNow.AddHours(2)
-		};
+		var dto = GetValidDto();
+		Event? captured = null;
+		_mockStore.Setup(s => s.Add(It.IsAny<Event>())).Callback<Event>(e => captured = e);
 
 		// Act
 		var result = _service.Create(dto);
 
 		// Assert
-		Assert.NotNull(result);
-		Assert.NotEqual(Guid.Empty, result.Id);
-		Assert.Equal("Тестовое событие", result.Title);
+		Assert.NotNull(captured);
+		Assert.NotEqual(Guid.Empty, captured.Id);
+		Assert.Equal(dto.Title, result.Title);
+		_mockStore.Verify(s => s.Add(It.IsAny<Event>()), Times.Once);
 	}
 
 	/// <summary>
-	/// Проверяет успешное получение существующего мероприятия по ID.
+	/// Проверяет, что метод GetById запрашивает сущность у репозитория 
+	/// и возвращает корректный DTO, если сущность существует.
 	/// </summary>
 	[Fact]
 	public void GetById_ShouldReturnEvent_WhenExists()
 	{
 		// Arrange
-		var created = _service.Create(new CreateEventRequestDto { Title = "Найди меня", StartAt = DateTime.UtcNow, EndAt = DateTime.UtcNow.AddHours(1) });
+		var ev = new Event { Id = Guid.NewGuid(), Title = "Test" };
+		_mockStore.Setup(s => s.GetById(ev.Id)).Returns(ev);
 
 		// Act
-		var result = _service.GetById(created.Id);
+		var result = _service.GetById(ev.Id);
 
 		// Assert
-		Assert.Equal(created.Id, result.Id);
-		Assert.Equal("Найди меня", result.Title);
+		Assert.Equal(ev.Id, result.Id);
 	}
 
 	/// <summary>
-	/// Проверяет успешное обновление данных мероприятия.
+	/// Проверяет, что метод GetById делегирует ответственность за отсутствие сущности 
+	/// репозиторию и выбрасывает NotFoundException, если репозиторий вернул null.
 	/// </summary>
 	[Fact]
-	public void Update_ShouldChangeEventData_WhenExists()
-	{
-		// Arrange
-		var created = _service.Create(new CreateEventRequestDto { Title = "Старое", StartAt = DateTime.UtcNow, EndAt = DateTime.UtcNow.AddHours(1) });
-		var updateDto = new UpdateEventRequestDto { Title = "Новое", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(1).AddHours(1) };
-
-		// Act
-		Event? result = _service.Update(created.Id, updateDto);
-
-		// Assert
-		Assert.Equal("Новое", result.Title);
-	}
+	public void GetById_ShouldThrow_WhenNotExists() =>
+		Assert.Throws<NotFoundException>(() => _service.GetById(Guid.NewGuid()));
 
 	/// <summary>
-	/// Проверяет успешное удаление существующего мероприятия.
+	/// Проверяет, что метод Update выбрасывает NotFoundException при попытке обновить несуществующую сущность.
 	/// </summary>
 	[Fact]
-	public void Delete_ShouldRemoveEvent_WhenExists()
-	{
-		// Arrange
-		var created = _service.Create(new CreateEventRequestDto { Title = "To Delete", StartAt = DateTime.UtcNow, EndAt = DateTime.UtcNow.AddHours(1) });
-
-		// Act
-		_service.Delete(created.Id);
-
-		// Assert
-		// Проверяем, что после удаления сервис больше не может найти событие (кидает исключение)
-		Assert.Throws<NotFoundException>(() => _service.GetById(created.Id));
-	}
-
-	#endregion
-
-	#region Неуспешные сценарии
+	public void Update_ShouldThrow_WhenNotExists() =>
+		Assert.Throws<NotFoundException>(() => _service.Update(Guid.NewGuid(), new UpdateEventRequestDto { Title = "X", StartAt = DateTime.UtcNow, EndAt = DateTime.UtcNow.AddHours(1) }));
 
 	/// <summary>
-	/// Проверяет, что попытка получить несуществующее мероприятие выбрасывает NotFoundException.
+	/// Проверяет, что метод Update успешно находит сущность, изменяет её свойства 
+	/// и передает обновленную сущность в метод Update репозитория.
 	/// </summary>
 	[Fact]
-	public void GetById_ShouldThrowNotFoundException_WhenNotExists()
+	public void Update_ShouldPassUpdatedDataToStore_WhenExists()
 	{
 		// Arrange
-		var fakeId = Guid.NewGuid();
+		var eventId = Guid.NewGuid();
+		var existingEvent = new Event { Id = eventId, Title = "Старое", StartAt = DateTime.UtcNow, EndAt = DateTime.UtcNow.AddHours(1) };
 
-		// Act & Assert
-		Assert.Throws<NotFoundException>(() => _service.GetById(fakeId));
-	}
+		_mockStore.Setup(s => s.GetById(eventId)).Returns(existingEvent);
 
-	/// <summary>
-	/// Проверяет, что попытка обновить несуществующее мероприятие выбрасывает NotFoundException.
-	/// </summary>
-	[Fact]
-	public void Update_ShouldThrowNotFoundException_WhenNotExists()
-	{
-		// Arrange
-		var updateDto = new UpdateEventRequestDto { Title = "Обновление не найденного", StartAt = DateTime.UtcNow, EndAt = DateTime.UtcNow.AddHours(1) };
+		Event? capturedEvent = null;
+		_mockStore.Setup(s => s.Update(It.IsAny<Event>()))
+				  .Callback<Event>(e => capturedEvent = e);
 
-		// Act & Assert
-		Assert.Throws<NotFoundException>(() => _service.Update(Guid.NewGuid(), updateDto));
-	}
-
-	/// <summary>
-	/// Проверяет, удаление несуществующего мероприятия, в случае если мероприятие не найдено, кидает исключение.
-	/// </summary>
-	[Fact]
-	public void Delete_ShouldThrowNotFoundException_WhenNotExists()
-	{
-		// Arrange
-		var fakeId = Guid.NewGuid();
-
-		// Act & Assert
-		Assert.Throws<NotFoundException>(() => _service.Delete(fakeId));
-	}
-
-	#endregion
-
-	#region Фильтрация и Пагинация
-
-	/// <summary>
-	/// Проверяет корректность фильтрации по частичному совпадению названия (без учета регистра).
-	/// </summary>
-	[Fact]
-	public void GetFiltered_FilterByTitle_ShouldReturnOnlyMatchingEvents()
-	{
-		// Arrange
-		_service.Create(new CreateEventRequestDto { Title = "Баскетбол", StartAt = DateTime.UtcNow, EndAt = DateTime.UtcNow.AddHours(1) });
-		_service.Create(new CreateEventRequestDto { Title = "Учёба ЯП", StartAt = DateTime.UtcNow, EndAt = DateTime.UtcNow.AddHours(1) });
-
-		var query = new GetEventsQueryParams { Title = "баскет" }; // регистронезависимый
-
-		// Act
-		var result = _service.GetFiltered(query);
-
-		// Assert
-		Assert.Single(result.Items);
-		Assert.Equal("Баскетбол", result.Items[0].Title);
-	}
-
-	/// <summary>
-	/// Проверяет корректность фильтрации по диапазону дат.
-	/// </summary>
-	[Fact]
-	public void GetFiltered_FilterByDates_ShouldReturnEventsInRange()
-	{
-		// Arrange
-		_service.Create(new CreateEventRequestDto { Title = "Январь", StartAt = new DateTime(2024, 1, 10), EndAt = new DateTime(2024, 1, 11) });
-		_service.Create(new CreateEventRequestDto { Title = "Февраль", StartAt = new DateTime(2024, 2, 10), EndAt = new DateTime(2024, 2, 11) });
-
-		var query = new GetEventsQueryParams
+		var updateDto = new UpdateEventRequestDto
 		{
-			From = new DateTime(2024, 1, 1),
-			To = new DateTime(2024, 1, 31)
+			Title = "Новое",
+			StartAt = DateTime.UtcNow.AddDays(1),
+			EndAt = DateTime.UtcNow.AddDays(1).AddHours(1)
 		};
 
 		// Act
-		var result = _service.GetFiltered(query);
+		_service.Update(eventId, updateDto);
 
 		// Assert
-		Assert.Single(result.Items);
-		Assert.Equal("Январь", result.Items[0].Title);
+		Assert.NotNull(capturedEvent);
+		Assert.Equal("Новое", capturedEvent.Title);
+		_mockStore.Verify(s => s.Update(It.IsAny<Event>()), Times.Once);
 	}
 
 	/// <summary>
-	/// Проверяет, что пагинация корректно отсчитывает пропущенные элементы (Skip/Take).
+	/// Проверяет, что метод Delete выбрасывает NotFoundException при попытке удалить несуществующую сущность.
 	/// </summary>
 	[Fact]
-	public void GetFiltered_Pagination_ShouldReturnCorrectPage()
+	public void Delete_ShouldThrow_WhenNotExists() =>
+		Assert.Throws<NotFoundException>(() => _service.Delete(Guid.NewGuid()));
+
+	/// <summary>
+	/// Проверяет, что метод Delete успешно находит сущность и вызывает метод Remove в репозитории ровно один раз.
+	/// </summary>
+	[Fact]
+	public void Delete_ShouldCallRemove_WhenExists()
 	{
 		// Arrange
-		for (int i = 1; i <= 15; i++)
-		{
-			_service.Create(new CreateEventRequestDto { Title = $"Мероприятие {i}", StartAt = DateTime.UtcNow, EndAt = DateTime.UtcNow.AddHours(1) });
-		}
-
-		var query = new GetEventsQueryParams { Page = 2, PageSize = 5 };
+		var ev = new Event { Id = Guid.NewGuid() };
+		_mockStore.Setup(s => s.GetById(ev.Id)).Returns(ev);
 
 		// Act
-		var result = _service.GetFiltered(query);
+		_service.Delete(ev.Id);
 
 		// Assert
-		Assert.Equal(15, result.TotalCount);
-		Assert.Equal(5, result.Items.Count);
-		Assert.Equal(2, result.Page);
+		_mockStore.Verify(s => s.Remove(ev), Times.Once);
 	}
 
 	/// <summary>
-	/// Проверяет одновременное применение фильтра по названию и датам (логическое И).
+	/// Проверяет, что метод GetFiltered делегирует ответственность за фильтрацию и пагинацию репозиторию,
+	/// а затем корректно оборачивает результат в DTO пагинации.
 	/// </summary>
 	[Fact]
-	public void GetFiltered_CombinedFiltering_ShouldWorkCorrectly()
+	public void GetFiltered_ShouldReturnPaginatedResult()
 	{
 		// Arrange
-		_service.Create(new CreateEventRequestDto { Title = "Дедлайн по проекту", StartAt = new DateTime(2024, 5, 10), EndAt = new DateTime(2024, 5, 11) });
-		_service.Create(new CreateEventRequestDto { Title = "Дедлайн по домашке", StartAt = new DateTime(2024, 6, 10), EndAt = new DateTime(2024, 6, 11) });
-
-		var query = new GetEventsQueryParams
-		{
-			Title = "Проект",
-			From = new DateTime(2024, 5, 1),
-			To = new DateTime(2024, 5, 31)
-		};
+		var query = new GetEventsQueryParams { Page = 1, PageSize = 10 };
+		_mockStore.Setup(s => s.GetFiltered(query)).Returns((1, new List<Event> { new() { Id = Guid.NewGuid() } }));
 
 		// Act
 		var result = _service.GetFiltered(query);
 
 		// Assert
 		Assert.Single(result.Items);
-		Assert.Equal("Дедлайн по проекту", result.Items[0].Title);
 	}
-
-	#endregion
 }
