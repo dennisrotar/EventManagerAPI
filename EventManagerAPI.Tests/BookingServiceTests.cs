@@ -1,151 +1,118 @@
 ﻿using EventManagerAPI.DataAccess;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Models.DTOs;
+using EventManagerAPI.Models.Entities;
 using EventManagerAPI.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EventManagerAPI.Tests;
 
-/// <summary>
-/// Класс юнит-тестов для проверки конкурентности в BookingService.
-/// Использует реальные инстансы InMemory хранилищ для проверки работы примитивов синхронизации (lock).
-/// </summary>
-public class BookingServiceConcurrencyTests
+public class BookingServiceTests
 {
+	private readonly InMemoryBookingStore _store;
 	private readonly InMemoryEventStore _eventStore;
-	private readonly InMemoryBookingStore _bookingStore;
 	private readonly EventService _eventService;
 	private readonly BookingService _bookingService;
 
-	public BookingServiceConcurrencyTests()
+	public BookingServiceTests()
 	{
-		// Создаем общие хранилища
-		_eventStore = new InMemoryEventStore();
-		_bookingStore = new InMemoryBookingStore();
+		_eventStore = new InMemoryEventStore(); // ИНИЦИАЛИЗИРУЕМ хранилище
+		_store = new InMemoryBookingStore();
 
-		// Создаем сервисы, передавая им ОДНО И ТО ЖЕ хранилище событий.
+		// ПЕРЕДАЕМ _eventStore в EventService
 		_eventService = new EventService(_eventStore, NullLogger<EventService>.Instance);
-		_bookingService = new BookingService(_bookingStore, _eventStore, NullLogger<BookingService>.Instance);
+
+		// ПЕРЕДАЕМ тот же самый _eventStore и логгер в BookingService
+		_bookingService = new BookingService(_store, _eventStore, NullLogger<BookingService>.Instance);
 	}
 
-	/// <summary>
-	/// Вспомогательный метод для создания тестового события с заданным количеством мест.
-	/// </summary>
-	/// <param name="totalSeats">Общее количество мест для создания.</param>
-	/// <returns>ID созданного события.</returns>
-	private Guid CreateTestEventWithSeats(int totalSeats)
-	{
-		var dto = new CreateEventRequestDto
-		{
-			Title = "Concert",
-			StartAt = DateTime.UtcNow.AddDays(1),
-			EndAt = DateTime.UtcNow.AddDays(2),
-			TotalSeats = totalSeats
-		};
+	#region Успешные сценарии
 
-		var response = _eventService.Create(dto);
-		return response.Id;
-	}
-
-	/// <summary>
-	/// Проверяет, что успешное создание брони синхронно уменьшает количество доступных мест в хранилище ровно на 1.
-	/// </summary>
 	[Fact]
-	public async Task CreateBooking_ShouldDecrementAvailableSeats()
+	public async Task CreateBooking_ForExistingEvent_ShouldReturnPendingStatus()
 	{
 		// Arrange
-		var eventId = CreateTestEventWithSeats(5);
-		var eventBefore = _eventStore.GetById(eventId)!;
+		var eventDto = new CreateEventRequestDto { Title = "Test", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(2), TotalSeats = 10 };
+		var createdEvent = _eventService.Create(eventDto);
 
 		// Act
-		await _bookingService.CreateBookingAsync(eventId);
-		var eventAfter = _eventStore.GetById(eventId)!;
+		var result = await _bookingService.CreateBookingAsync(createdEvent.Id);
 
 		// Assert
-		Assert.Equal(eventBefore.AvailableSeats - 1, eventAfter.AvailableSeats);
+		Assert.NotNull(result);
+		Assert.Equal(BookingStatus.Pending, result.Status);
+		Assert.Equal(createdEvent.Id, result.EventId);
+		Assert.Null(result.ProcessedAt);
 	}
 
-	/// <summary>
-	/// Проверяет, что попытка забронировать место при нулевом количестве свободных мест 
-	/// выбрасывает NoAvailableSeatsException (ошибка 409 Conflict).
-	/// </summary>
 	[Fact]
-	public async Task CreateBooking_WhenNoSeats_ShouldThrowNoAvailableSeatsException()
+	public async Task CreateMultipleBookings_ShouldHaveUniqueIds()
 	{
 		// Arrange
-		var eventId = CreateTestEventWithSeats(1);
-		await _bookingService.CreateBookingAsync(eventId); // Забираем единственное место
+		var createdEvent = _eventService.Create(new CreateEventRequestDto { Title = "T", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(2), TotalSeats = 10 });
+
+		// Act
+		var b1 = await _bookingService.CreateBookingAsync(createdEvent.Id);
+		var b2 = await _bookingService.CreateBookingAsync(createdEvent.Id);
+
+		// Assert
+		Assert.NotEqual(b1.Id, b2.Id);
+	}
+
+	[Fact]
+	public async Task GetBooking_ShouldReflectStatusChange()
+	{
+		// Arrange
+		var createdEvent = _eventService.Create(new CreateEventRequestDto { Title = "T", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(2), TotalSeats = 10 });
+		var booking = await _bookingService.CreateBookingAsync(createdEvent.Id);
+
+		// Имитируем работу фонового сервиса
+		var domainBooking = _store.GetById(booking.Id)!;
+		domainBooking.Confirm();
+		_store.Update(domainBooking);
+
+		// Act
+		var result = await _bookingService.GetBookingByIdAsync(booking.Id);
+
+		// Assert
+		Assert.Equal(BookingStatus.Confirmed, result.Status);
+		Assert.NotNull(result.ProcessedAt);
+	}
+
+	#endregion
+
+	#region Неуспешные сценарии
+
+	[Fact]
+	public async Task CreateBooking_ForNonExistingEvent_ShouldThrowNotFoundException()
+	{
+		// Arrange
+		var fakeEventId = Guid.NewGuid();
 
 		// Act & Assert
-		await Assert.ThrowsAsync<NoAvailableSeatsException>(() => _bookingService.CreateBookingAsync(eventId));
+		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.CreateBookingAsync(fakeEventId));
 	}
 
-	/// <summary>
-	/// Проверяет защиту от овербукинга при многопоточности (Task.Run + Task.WhenAll).
-	/// Запускает 20 конкурентных запросов на 5 мест.
-	/// Ожидается: ровно 5 успешных броней, 15 исключений NoAvailableSeatsException, 
-	/// и AvailableSeats в хранилище должно стать равно 0.
-	/// </summary>
 	[Fact]
-	public async Task ConcurrentBookings_ShouldPreventOverbooking()
+	public async Task CreateBooking_ForDeletedEvent_ShouldThrowNotFoundException()
 	{
 		// Arrange
-		var eventId = CreateTestEventWithSeats(5);
-		const int concurrentTasks = 20;
+		var createdEvent = _eventService.Create(new CreateEventRequestDto { Title = "T", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(2) });
+		_eventService.Delete(createdEvent.Id); // Удаляем событие
 
-		var tasks = new Task[concurrentTasks];
-		var exceptions = new List<Exception>();
-
-		// Act: Запускаем 20 потоков одновременно
-		for (int i = 0; i < concurrentTasks; i++)
-		{
-			tasks[i] = Task.Run(async () =>
-			{
-				try
-				{
-					await _bookingService.CreateBookingAsync(eventId);
-				}
-				catch (Exception ex)
-				{
-					lock (exceptions) { exceptions.Add(ex); }
-				}
-			});
-		}
-
-		await Task.WhenAll(tasks);
-
-		// Assert
-		var noSeatsExceptions = exceptions.OfType<NoAvailableSeatsException>().ToList();
-
-		// Должно быть ровно 15 ошибок (20 попыток минус 5 успешных)
-		Assert.Equal(15, noSeatsExceptions.Count);
-
-		// Все остальные исключения (если есть) должны быть только этого типа
-		Assert.Equal(exceptions.Count, noSeatsExceptions.Count);
-
-		// Проверяем состояние хранилища: свободных мест не должно остаться
-		var eventEntity = _eventStore.GetById(eventId)!;
-		Assert.Equal(0, eventEntity.AvailableSeats);
+		// Act & Assert
+		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.CreateBookingAsync(createdEvent.Id));
 	}
 
-	/// <summary>
-	/// Проверяет, что при конкурентном создании броней генерируются уникальные идентификаторы (Id).
-	/// Запускает 10 конкурентных запросов на 10 мест и проверяет уникальность полученных Id.
-	/// </summary>
 	[Fact]
-	public async Task ConcurrentBookings_ShouldHaveUniqueIds()
+	public async Task GetBooking_ByNonExistingId_ShouldThrowNotFoundException()
 	{
 		// Arrange
-		var eventId = CreateTestEventWithSeats(10);
-		var tasks = Enumerable.Range(0, 10).Select(_ => _bookingService.CreateBookingAsync(eventId));
+		var fakeBookingId = Guid.NewGuid();
 
-		// Act
-		var results = await Task.WhenAll(tasks);
-
-		// Assert
-		var uniqueIds = results.Select(b => b.Id).ToHashSet();
-
-		// Если бы Id генерировались не потокобезопасно, здесь было бы меньше 10 элементов
-		Assert.Equal(10, uniqueIds.Count);
+		// Act & Assert
+		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.GetBookingByIdAsync(fakeBookingId));
 	}
+
+	#endregion
 }

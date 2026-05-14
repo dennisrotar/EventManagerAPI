@@ -28,18 +28,19 @@
 
 ``` text
 EventManagerAPI/
-├── EventManager.Api/			 <-- Основной веб-API проект
-│   ├── Controllers/					 <-- Тонкий слой (маршрутизация, вызов сервисов)
-│   ├── Services/						 <-- Доменный слой (бизнес-логика, маппинг, генерация исключений)
-│   ├── DataAccess/				     <-- Инфраструктурный слой (InMemory хранилища, доступ к данным)
-│   ├── Interfaces/					 <-- Абстракции (DIP)
-│   ├── Models/						     <-- Доменные сущности и DTO
+├── EventManager.Api/<-- Основной веб-API проект
+│   ├── Controllers/			  <-- Тонкий слой (маршрутизация, вызов сервисов)
+│   ├── Services/			  <-- Доменный слой (бизнес-логика, маппинг, генерация исключений)
+│   ├── DataAccess/                       <-- Инфраструктурный слой (InMemory хранилища, доступ к данным)
+│   ├── Interfaces/			  <-- Абстракции (DIP)
+│   ├── Models/				  <-- Доменные сущности и DTO
 │   │   └── DTOs/                      
-│   └── Exceptions/                    <-- Кастомные исключения и глобальный обработчик
-├── EventManager.Api.Tests/	 <-- Проект юнит-тестов
-│   ├── EventServiceTests.cs	 <-- Тесты доменного сервиса (с использованием Moq для изоляции репозитория)
-│   ├── BookingServiceTests.cs <-- Тесты сервиса бронирований
-│   └── DtoValidationTests.cs    <-- Тесты правил валидации DTO
+│   └── Exceptions/                       <-- Кастомные исключения и глобальный обработчик
+├── EventManager.Api.Tests/	          <-- Проект юнит-тестов
+│   ├── EventServiceTests.cs	          <-- Тесты доменного сервиса (с использованием Moq для изоляции репозитория)
+│   ├── BookingServiceTests.cs            <-- Тесты сервиса бронирований
+│   ├── BookingServiceConcurrencyTests.cs <-- Тесты BookingService - конкурентные, без Moq
+│   └── DtoValidationTests.cs             <-- Тесты правил валидации DTO
 ```
 
 ## Запуск проекта

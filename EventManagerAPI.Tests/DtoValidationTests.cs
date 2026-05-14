@@ -105,14 +105,15 @@ public class DtoValidationTests
 		{
 			Title = "",
 			StartAt = DateTime.UtcNow.AddYears(-1),
-			EndAt = DateTime.UtcNow.AddYears(-2)
+			EndAt = DateTime.UtcNow.AddYears(-2),
+			TotalSeats = 0 // Добавили ошибку валидации мест
 		};
 
 		// Act
 		var errors = ValidateModel(dto);
 
-		// Assert - проверяем, что собрались все 3 ошибки
-		Assert.Equal(3, errors.Count);
+		// Assert - теперь ожидаем 4 ошибки (пустой титл, прошлое, даты и места)
+		Assert.Equal(4, errors.Count);
 	}
 
 	/// <summary>
@@ -158,7 +159,8 @@ public class DtoValidationTests
 		{
 			Title = "Валидное",
 			StartAt = DateTime.UtcNow.AddMinutes(1),
-			EndAt = DateTime.UtcNow.AddHours(1)
+			EndAt = DateTime.UtcNow.AddHours(1),
+			TotalSeats = 10 // Добавили валидное количество мест
 		};
 
 		// Act
