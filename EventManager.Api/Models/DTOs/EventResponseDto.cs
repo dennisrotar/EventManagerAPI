@@ -29,5 +29,15 @@
 		/// Дата окончания.
 		/// </summary>
 		public DateTime EndAt { get; set; }
+		
+		/// <summary>
+		/// Общее количество мест на событии.
+		/// </summary>
+		public int TotalSeats { get; set; }
+		
+		/// <summary>
+		/// Текущее количество свободных мест.
+		/// </summary>
+		public int AvailableSeats { get; set; }
 	}
 }

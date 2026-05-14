@@ -29,6 +29,13 @@ namespace EventManagerAPI.Models.DTOs
 		/// </summary>
 		[Required(ErrorMessage = "Дата окончания обязательна!")]
 		public DateTime EndAt { get; set; }
+		
+		/// <summary>
+		/// Количество мест на мероприятии. Не может быть пустым и должно быть больше 0.
+		/// </summary>
+		[Required(ErrorMessage = "Количество мест обязательно!")]
+		[Range(1, int.MaxValue, ErrorMessage = "Количество мест должно быть больше 0!")]
+		public int TotalSeats { get; set; }
 
 		/// <summary>
 		/// Кастомная валидация логики дат.
