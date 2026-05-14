@@ -12,35 +12,54 @@ namespace EventManagerAPI.Services;
 public class BookingService : IBookingService
 {
 	private readonly IBookingStore _bookingStore;
-	private readonly IEventService _eventService;
+	private readonly IEventStore _eventStore;
+	private readonly object _bookingLock = new();
+	private readonly ILogger<BookingService> _logger;
 
-	public BookingService(IBookingStore bookingStore, IEventService eventService)
+	public BookingService(IBookingStore bookingStore, IEventStore eventStore, ILogger<BookingService> logger) // <-- Добавлен параметр
 	{
 		_bookingStore = bookingStore ?? throw new ArgumentNullException(nameof(bookingStore));
-		_eventService = eventService ?? throw new ArgumentNullException(nameof(eventService));
+		_eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger)); // <-- Защита от null
 	}
 
 	/// <summary>
-	/// Создает бронь. Проверяет существование события.
+	/// Создает бронь. Проверяет существование события и доступность мест.
+	/// Атомарная операция под lock.
 	/// </summary>
 	public async Task<BookingResponseDto> CreateBookingAsync(Guid eventId)
 	{
-		// Проверка существования события (выбросит 404 через наш BaseApiException, если не найдено)
-		_ = await Task.Run(() => _eventService.GetById(eventId));
+		_logger.LogInformation("Попытка создания брони для события {EventId}", eventId);
 
-		var booking = Booking.CreatePending(eventId);
-		_bookingStore.Add(booking);
+		lock (_bookingLock)
+		{
+			var eventEntity = _eventStore.GetById(eventId)
+				?? throw new NotFoundException($"Мероприятие с ID {eventId} не найдено.");
 
-		return MapToDto(booking);
+			if (!eventEntity.TryReserveSeats())
+			{
+				_logger.LogWarning("Нет свободных мест для события {EventId}", eventId); // <-- Логируем конфликт
+				throw new NoAvailableSeatsException("Свободных мест на это мероприятие нет.");
+			}
+
+			_eventStore.Update(eventEntity);
+
+			var booking = Booking.CreatePending(eventId);
+			_bookingStore.Add(booking);
+
+			_logger.LogInformation("Бронь {BookingId} успешно создана", booking.Id); // <-- Логируем успех
+
+			return MapToDto(booking);
+		}
 	}
 
 	/// <summary>
-	/// Получает информацию о брони.
+	/// Получает информацию о брони. 
 	/// </summary>
 	public async Task<BookingResponseDto> GetBookingByIdAsync(Guid bookingId)
 	{
-		var booking = await Task.Run(() => _bookingStore.GetById(bookingId))
-			?? throw new NotFoundException($"Бронирование с ID {bookingId} не найдено.");
+		var booking = _bookingStore.GetById(bookingId)
+			?? throw new NotFoundException($"Бронирование с ID {bookingId} не найдена.");
 
 		return MapToDto(booking);
 	}

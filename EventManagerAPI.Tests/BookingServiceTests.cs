@@ -1,10 +1,8 @@
 ﻿using EventManagerAPI.DataAccess;
-using EventManagerAPI.Models.DTOs.Booking;
-using EventManagerAPI.Models.Entities;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Models.DTOs;
+using EventManagerAPI.Models.Entities;
 using EventManagerAPI.Services;
-using Xunit;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EventManagerAPI.Tests;
@@ -12,18 +10,20 @@ namespace EventManagerAPI.Tests;
 public class BookingServiceTests
 {
 	private readonly InMemoryBookingStore _store;
+	private readonly InMemoryEventStore _eventStore;
 	private readonly EventService _eventService;
 	private readonly BookingService _bookingService;
 
 	public BookingServiceTests()
 	{
-		// Создаем реальное хранилище событий для тестов
-		var eventStore = new InMemoryEventStore();
-
-		_eventService = new EventService(eventStore, NullLogger<EventService>.Instance);
-
+		_eventStore = new InMemoryEventStore(); // ИНИЦИАЛИЗИРУЕМ хранилище
 		_store = new InMemoryBookingStore();
-		_bookingService = new BookingService(_store, _eventService);
+
+		// ПЕРЕДАЕМ _eventStore в EventService
+		_eventService = new EventService(_eventStore, NullLogger<EventService>.Instance);
+
+		// ПЕРЕДАЕМ тот же самый _eventStore и логгер в BookingService
+		_bookingService = new BookingService(_store, _eventStore, NullLogger<BookingService>.Instance);
 	}
 
 	#region Успешные сценарии
@@ -32,7 +32,7 @@ public class BookingServiceTests
 	public async Task CreateBooking_ForExistingEvent_ShouldReturnPendingStatus()
 	{
 		// Arrange
-		var eventDto = new CreateEventRequestDto { Title = "Test", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(2) };
+		var eventDto = new CreateEventRequestDto { Title = "Test", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(2), TotalSeats = 10 };
 		var createdEvent = _eventService.Create(eventDto);
 
 		// Act
@@ -49,7 +49,7 @@ public class BookingServiceTests
 	public async Task CreateMultipleBookings_ShouldHaveUniqueIds()
 	{
 		// Arrange
-		var createdEvent = _eventService.Create(new CreateEventRequestDto { Title = "T", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(2) });
+		var createdEvent = _eventService.Create(new CreateEventRequestDto { Title = "T", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(2), TotalSeats = 10 });
 
 		// Act
 		var b1 = await _bookingService.CreateBookingAsync(createdEvent.Id);
@@ -63,7 +63,7 @@ public class BookingServiceTests
 	public async Task GetBooking_ShouldReflectStatusChange()
 	{
 		// Arrange
-		var createdEvent = _eventService.Create(new CreateEventRequestDto { Title = "T", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(2) });
+		var createdEvent = _eventService.Create(new CreateEventRequestDto { Title = "T", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(2), TotalSeats = 10 });
 		var booking = await _bookingService.CreateBookingAsync(createdEvent.Id);
 
 		// Имитируем работу фонового сервиса

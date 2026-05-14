@@ -9,11 +9,24 @@ namespace EventManagerAPI.DataAccess;
 public class InMemoryEventStore : IEventStore
 {
 	private readonly List<Event> _events = [];
+	private readonly object _storeLock = new();
 
 	public Event? GetById(Guid id) => _events.FirstOrDefault(e => e.Id == id);
-	public void Add(Event eventEntity) => _events.Add(eventEntity);
-	public void Update(Event eventEntity) { }
-	public void Remove(Event eventEntity) => _events.Remove(eventEntity);
+
+	public void Add(Event eventEntity)
+	{
+		lock (_storeLock) { _events.Add(eventEntity); }
+	}
+
+	public void Update(Event eventEntity)
+	{
+		lock (_storeLock) { /* В памяти обновление свойств происходит по ссылке, но lock нужен для безопасности */ }
+	}
+
+	public void Remove(Event eventEntity)
+	{
+		lock (_storeLock) { _events.Remove(eventEntity); }
+	}
 
 	public (int TotalCount, List<Event> Items) GetFiltered(GetEventsQueryParams query)
 	{

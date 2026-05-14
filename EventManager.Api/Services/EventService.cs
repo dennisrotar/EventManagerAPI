@@ -59,7 +59,9 @@ public class EventService : IEventService
 			Title = dto.Title,
 			Description = dto.Description,
 			StartAt = dto.StartAt,
-			EndAt = dto.EndAt
+			EndAt = dto.EndAt,
+			TotalSeats = dto.TotalSeats,
+			AvailableSeats = dto.TotalSeats // Инициализация доступных мест.
 		};
 
 		_eventStore.Add(newEvent);
@@ -80,6 +82,7 @@ public class EventService : IEventService
 		existingEvent.Description = dto.Description;
 		existingEvent.StartAt = dto.StartAt;
 		existingEvent.EndAt = dto.EndAt;
+		existingEvent.TotalSeats = dto.TotalSeats; // Обновляем общее количество мест.
 		_eventStore.Update(existingEvent);
 	}
 
@@ -105,6 +108,8 @@ public class EventService : IEventService
 		Title = e.Title,
 		Description = e.Description,
 		StartAt = e.StartAt,
-		EndAt = e.EndAt
+		EndAt = e.EndAt,
+		TotalSeats = e.TotalSeats,
+		AvailableSeats = e.AvailableSeats
 	};
 }
