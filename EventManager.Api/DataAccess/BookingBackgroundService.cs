@@ -15,6 +15,9 @@ public class BookingBackgroundService : BackgroundService
 	// Асинхронный примитив для защиты записи в хранилище во время параллельной обработки
 	private readonly SemaphoreSlim _processingSemaphore = new(1, 1);
 
+	private const int ProcessingDelayMs = 2000;
+	private static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(3);
+
 	public BookingBackgroundService(IBookingStore bookingStore, IEventStore eventStore, ILogger<BookingBackgroundService> logger)
 	{
 		_bookingStore = bookingStore;
@@ -39,7 +42,7 @@ public class BookingBackgroundService : BackgroundService
 				await Task.WhenAll(tasks);
 			}
 
-			await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
+			await Task.Delay(PollingInterval, stoppingToken);
 		}
 	}
 
@@ -50,7 +53,7 @@ public class BookingBackgroundService : BackgroundService
 		try
 		{
 			// Имитация вызова внешней системы ВНЕ семафора (чтобы задержки были параллельными)
-			await Task.Delay(2000, stoppingToken);
+			await Task.Delay(ProcessingDelayMs, stoppingToken);
 
 			// Захватываем семафор только перед изменением состояния/хранилища
 			await _processingSemaphore.WaitAsync(stoppingToken);

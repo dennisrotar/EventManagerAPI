@@ -109,15 +109,16 @@ GET /events?title=концерт&from=2024-01-01T00:00:00Z&page=2&pageSize=5
   "page": 2,
   "pageSize": 5,
   "items": [
-    {
-      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "title": "Тренировка по баскету",
-      "description": "Опоздаешь-отожмёшься!",
-      "startAt": "2024-01-15T20:00:00Z",
-      "endAt": "2024-01-15T23:00:00Z"
-    }
-  ]
-}
+        {
+          "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          "title": "Тренировка по баскету",
+          "description": "Опоздаешь-отожмёшься!",
+          "startAt": "2024-01-15T20:00:00Z",
+          "endAt": "2024-01-15T23:00:00Z",
+          "totalSeats": 50,
+          "availableSeats": 42
+        }
+      ]
 ```
 
 

@@ -53,16 +53,14 @@ public class EventService : IEventService
 	{
 		_logger.LogInformation("Создание нового события с заголовком: {Title}", dto.Title);
 
-		var newEvent = new Event
-		{
-			Id = Guid.NewGuid(),
-			Title = dto.Title,
-			Description = dto.Description,
-			StartAt = dto.StartAt,
-			EndAt = dto.EndAt,
-			TotalSeats = dto.TotalSeats,
-			AvailableSeats = dto.TotalSeats // Инициализация доступных мест.
-		};
+		// Используем фабрику
+		var newEvent = Event.Create(
+			dto.Title,
+			dto.Description,
+			dto.StartAt,
+			dto.EndAt,
+			dto.TotalSeats
+		);
 
 		_eventStore.Add(newEvent);
 
@@ -78,11 +76,8 @@ public class EventService : IEventService
 		var existingEvent = _eventStore.GetById(id)
 			?? throw new NotFoundException($"Мероприятие с ID {id} не найдено.");
 
-		existingEvent.Title = dto.Title;
-		existingEvent.Description = dto.Description;
-		existingEvent.StartAt = dto.StartAt;
-		existingEvent.EndAt = dto.EndAt;
-		existingEvent.TotalSeats = dto.TotalSeats; // Обновляем общее количество мест.
+		// Используем метод обновления
+		existingEvent.UpdateDetails(dto.Title, dto.Description, dto.StartAt, dto.EndAt, dto.TotalSeats);
 		_eventStore.Update(existingEvent);
 	}
 

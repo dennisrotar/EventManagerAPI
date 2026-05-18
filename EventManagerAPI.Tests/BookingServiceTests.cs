@@ -97,7 +97,14 @@ public class BookingServiceTests
 	public async Task CreateBooking_ForDeletedEvent_ShouldThrowNotFoundException()
 	{
 		// Arrange
-		var createdEvent = _eventService.Create(new CreateEventRequestDto { Title = "T", StartAt = DateTime.UtcNow.AddDays(1), EndAt = DateTime.UtcNow.AddDays(2) });
+		var createdEvent = _eventService.Create(new CreateEventRequestDto
+		{
+			Title = "T",
+			StartAt = DateTime.UtcNow.AddDays(1),
+			EndAt = DateTime.UtcNow.AddDays(2),
+			TotalSeats = 10 // <--- ДОБАВЬТЕ ЭТУ СТРОКУ
+		});
+
 		_eventService.Delete(createdEvent.Id); // Удаляем событие
 
 		// Act & Assert
@@ -112,6 +119,80 @@ public class BookingServiceTests
 
 		// Act & Assert
 		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.GetBookingByIdAsync(fakeBookingId));
+	}
+
+	#endregion
+
+	#region Тесты смены статусов и цепочки
+
+	[Fact]
+	public void Confirm_ShouldSetStatusAndProcessedAt()
+	{
+		// Arrange
+		var booking = Booking.CreatePending(Guid.NewGuid());
+
+		// Act
+		booking.Confirm();
+
+		// Assert
+		Assert.Equal(BookingStatus.Confirmed, booking.Status);
+		Assert.NotNull(booking.ProcessedAt);
+	}
+
+	[Fact]
+	public void Reject_ShouldSetStatusAndProcessedAt()
+	{
+		// Arrange
+		var booking = Booking.CreatePending(Guid.NewGuid());
+
+		// Act
+		booking.Reject();
+
+		// Assert
+		Assert.Equal(BookingStatus.Rejected, booking.Status);
+		Assert.NotNull(booking.ProcessedAt);
+	}
+
+	[Fact]
+	public async Task Reject_Chain_ShouldReleaseSeatsAndAllowRebooking()
+	{
+		// Arrange: Создаем событие ровно на 1 место
+		var eventDto = new CreateEventRequestDto
+		{
+			Title = "Test Chain",
+			StartAt = DateTime.UtcNow.AddDays(1),
+			EndAt = DateTime.UtcNow.AddDays(2),
+			TotalSeats = 1
+		};
+		var createdEvent = _eventService.Create(eventDto);
+
+		// Act 1: Забираем единственное место
+		var booking1 = await _bookingService.CreateBookingAsync(createdEvent.Id);
+
+		// Act 2: Пытаемся забронировать еще раз (ожидаем 409 Conflict)
+		await Assert.ThrowsAsync<NoAvailableSeatsException>(() => _bookingService.CreateBookingAsync(createdEvent.Id));
+
+		// Act 3: Имитируем отказ первой брони
+		var domainBooking = _store.GetById(booking1.Id)!;
+		domainBooking.Reject();
+		_store.Update(domainBooking);
+
+		// Имитация фонового сервиса: Возвращаем место в событии и сохраняем в хранилище
+		var eventToUpdate = _eventStore.GetById(createdEvent.Id)!;
+		eventToUpdate.ReleaseSeats();
+		_eventStore.Update(eventToUpdate);
+
+		// Assert: Проверяем, что место вернулось
+		var eventAfterReject = _eventStore.GetById(createdEvent.Id)!;
+		Assert.Equal(1, eventAfterReject.AvailableSeats);
+
+		// Act 4: Пытаемся забронировать снова после возврата места
+		var booking2 = await _bookingService.CreateBookingAsync(createdEvent.Id);
+
+		// Assert: Успех!
+		Assert.NotNull(booking2);
+		Assert.NotEqual(booking1.Id, booking2.Id); // Это новая бронь
+		Assert.Equal(0, _eventStore.GetById(createdEvent.Id)!.AvailableSeats); // Мест снова нет
 	}
 
 	#endregion
