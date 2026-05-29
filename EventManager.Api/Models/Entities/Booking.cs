@@ -11,7 +11,14 @@ public class Booking
 	public DateTime CreatedAt { get; private set; }
 	public DateTime? ProcessedAt { get; private set; }
 
-	// Для ORM/Сериализации
+	/// <summary>
+	/// Навигационное свойство
+	/// </summary>
+	public Event? Event { get; set; }
+
+	/// <summary>
+	/// Конструктор для EF Core.
+	/// </summary>
 	private Booking() { }
 
 	/// <summary>
