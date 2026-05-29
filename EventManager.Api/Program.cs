@@ -1,8 +1,10 @@
 using EventManagerAPI.DataAccess;
+using EventManagerAPI.DataAccess.Configurations;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
 using EventManagerAPI.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,20 +46,25 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Инфраструктура (хранилища - Singleton)
-// Хранят состояние в памяти. Должны быть единым экземпляром для всего приложения.
-builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
-builder.Services.AddSingleton<IBookingStore, InMemoryBookingStore>();
+// Регистрация DbContext (Scoped)
+builder.Services.AddDbContext<AppDbContext>(options =>
+	options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Доменные сервисы (Scoped)
-// Не имеют состояния, работают с хранилищами. Живут в рамках одного HTTP-запроса.
+// Регистрация сервисов (Scoped)
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 
-// Регистрация фонового сервиса
+// Фоновый сервис (Singleton)
 builder.Services.AddHostedService<BookingBackgroundService>();
 
 var app = builder.Build();
+
+// Создание схемы БД
+using (var scope = app.Services.CreateScope())
+{
+	var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+	db.Database.EnsureCreated();
+}
 
 // Включаем Swagger
 if (app.Environment.IsDevelopment())
@@ -71,9 +78,7 @@ app.UseHttpsRedirection();
 // Включаем встроенный pipeline обработки исключений, 
 // который теперь будет делегировать работу нашему GlobalExceptionHandler
 app.UseExceptionHandler();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
