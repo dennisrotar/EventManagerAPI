@@ -1,8 +1,10 @@
 using EventManagerAPI.DataAccess;
-using EventManagerAPI.Models.DTOs.Booking;
+using EventManagerAPI.DataAccess.Configurations;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
+using EventManagerAPI.Models.DTOs.Booking;
 using EventManagerAPI.Models.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace EventManagerAPI.Services;
 
@@ -11,46 +13,50 @@ namespace EventManagerAPI.Services;
 /// </summary>
 public class BookingService : IBookingService
 {
-	private readonly IBookingStore _bookingStore;
-	private readonly IEventStore _eventStore;
-	private readonly object _bookingLock = new();
+	private readonly AppDbContext _context;
 	private readonly ILogger<BookingService> _logger;
 
-	public BookingService(IBookingStore bookingStore, IEventStore eventStore, ILogger<BookingService> logger) // <-- Добавлен параметр
+	// Static, так как сервис Scoped, а нам нужна синхронизация между разными запросами
+	private static readonly SemaphoreSlim _bookingLock = new(1, 1);
+
+	public BookingService(AppDbContext context, ILogger<BookingService> logger)
 	{
-		_bookingStore = bookingStore ?? throw new ArgumentNullException(nameof(bookingStore));
-		_eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
-		_logger = logger ?? throw new ArgumentNullException(nameof(logger)); // <-- Защита от null
+		_context = context ?? throw new ArgumentNullException(nameof(context));
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
 	/// <summary>
 	/// Создает бронь. Проверяет существование события и доступность мест.
-	/// Атомарная операция под lock.
 	/// </summary>
 	public async Task<BookingResponseDto> CreateBookingAsync(Guid eventId)
 	{
 		_logger.LogInformation("Попытка создания брони для события {EventId}", eventId);
 
-		lock (_bookingLock)
+		await _bookingLock.WaitAsync();
+		try
 		{
-			var eventEntity = _eventStore.GetById(eventId)
+
+			// AsNoTracking не подходит, так как будем менять AvailableSeats
+			var eventEntity = await _context.Events.FirstOrDefaultAsync(e => e.Id == eventId)
 				?? throw new NotFoundException($"Мероприятие с ID {eventId} не найдено.");
 
 			if (!eventEntity.TryReserveSeats())
 			{
-				_logger.LogWarning("Нет свободных мест для события {EventId}", eventId); // <-- Логируем конфликт
+				_logger.LogWarning("Нет свободных мест для события {EventId}", eventId);
 				throw new NoAvailableSeatsException("Свободных мест на это мероприятие нет.");
 			}
 
-			_eventStore.Update(eventEntity);
-
 			var booking = Booking.CreatePending(eventId);
-			_bookingStore.Add(booking);
+			_context.Bookings.Add(booking);
 
-			_logger.LogInformation("Бронь {BookingId} успешно создана", booking.Id); // <-- Логируем успех
+			// Один вызов SaveChanges сохранит и обновленное событие, и новую бронь
+			await _context.SaveChangesAsync();
+
+			_logger.LogInformation("Бронь {BookingId} успешно создана", booking.Id);
 
 			return MapToDto(booking);
 		}
+		finally { _bookingLock.Release(); }
 	}
 
 	/// <summary>
@@ -58,7 +64,7 @@ public class BookingService : IBookingService
 	/// </summary>
 	public async Task<BookingResponseDto> GetBookingByIdAsync(Guid bookingId)
 	{
-		var booking = _bookingStore.GetById(bookingId)
+		var booking = await _context.Bookings.AsNoTracking().FirstOrDefaultAsync(b => b.Id == bookingId)
 			?? throw new NotFoundException($"Бронирование с ID {bookingId} не найдена.");
 
 		return MapToDto(booking);

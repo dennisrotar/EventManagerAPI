@@ -16,6 +16,14 @@ namespace EventManagerAPI.Models.Entities
 		public int TotalSeats { get; private set; }
 		public int AvailableSeats { get; private set; }
 
+		/// <summary>
+		/// Навигационное свойство для EF Core.
+		/// </summary>
+		public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
+
+		/// <summary>
+		/// Конструктор для EF Core.
+		/// </summary>
 		private Event() { }
 
 		/// <summary>
