@@ -34,15 +34,15 @@ public class EventsController : ControllerBase
 	/// <response code="200"> Успешный возврат списка.</response>
 	/// <response code="400"> Ошибка валидации параметров запроса (например, page < 1).</response>
 	[HttpGet]
-	public ActionResult<PaginatedResultDto<EventResponseDto>> GetAll([FromQuery] GetEventsQueryParams query)
+	public async Task<ActionResult<PaginatedResultDto<EventResponseDto>>> GetAll([FromQuery] GetEventsQueryParams query)
 	{
 		_logger.LogDebug("Входящий GET запрос на /events");
 
 		if (!ModelState.IsValid)
 			return ValidationProblem(ModelState);
 
-		// Сервис УЖЕ возвращает готовый DTO с пагинацией, маппинг не нужен!
-		return Ok(_eventService.GetFiltered(query));
+		var result = await _eventService.GetFiltered(query);
+		return Ok(result);
 	}
 
 	/// <summary>
@@ -53,28 +53,23 @@ public class EventsController : ControllerBase
 	/// <response code="200"> Мероприятие найдено.</response>
 	/// <response code="404"> Мероприятие с указанным ID не найдено.</response>
 	[HttpGet("{id:guid}")]
-	public ActionResult<EventResponseDto> GetById(Guid id)
+	public async Task<ActionResult<EventResponseDto>> GetById(Guid id)
 	{
 		_logger.LogDebug("Входящий GET запрос на /events/{Id}", id);
 
-		// Сервис УЖЕ возвращает готовый DTO
-		return Ok(_eventService.GetById(id));
+		var eventDto = await _eventService.GetById(id);
+		return Ok(eventDto);
 	}
 
 	/// <summary>
 	/// Создать новое мероприятие.
 	/// </summary>
-	/// <param name="dto"> Данные создаваемого мероприятия (передаются в теле запроса).</param>
-	/// <returns> Возвращает созданное мероприятие.</returns>
-	/// <response code="201"> Мероприятие успешно создано.</response>
-	/// <response code="400"> Ошибка валидации данных (пустой заголовок, даты в прошлом и т.д.).</response>
 	[HttpPost]
-	public ActionResult<EventResponseDto> Create([FromBody] CreateEventRequestDto dto)
+	public async Task<ActionResult<EventResponseDto>> Create([FromBody] CreateEventRequestDto dto)
 	{
 		_logger.LogDebug("Входящий POST запрос на /events");
 
-		// Сервис возвращает готовый DTO созданного события
-		var createdEvent = _eventService.Create(dto);
+		var createdEvent = await _eventService.Create(dto);
 
 		return CreatedAtAction(nameof(GetById), new { id = createdEvent.Id }, createdEvent);
 	}
@@ -105,13 +100,10 @@ public class EventsController : ControllerBase
 	/// <response code="400"> Ошибка валидации данных.</response>
 	/// <response code="404"> Мероприятие для обновления не найдено.</response>
 	[HttpPut("{id:guid}")]
-	public ActionResult Update(Guid id, [FromBody] UpdateEventRequestDto dto)
+	public async Task<ActionResult> Update(Guid id, [FromBody] UpdateEventRequestDto dto)
 	{
 		_logger.LogDebug("Входящий PUT запрос на /events/{Id}", id);
-
-		// Метод теперь void, просто вызываем его
-		_eventService.Update(id, dto);
-
+		await _eventService.Update(id, dto);
 		return NoContent();
 	}
 
@@ -122,13 +114,10 @@ public class EventsController : ControllerBase
 	/// <response code="204">Мероприятие успешно удалено.</response>
 	/// <response code="404">Мероприятие для удаления не найдено.</response>
 	[HttpDelete("{id:guid}")]
-	public ActionResult Delete(Guid id)
+	public async Task<ActionResult> Delete(Guid id)
 	{
 		_logger.LogDebug("Входящий DELETE запрос на /events/{Id}", id);
-
-		// Метод теперь void, просто вызываем его
-		_eventService.Delete(id);
-
+		await _eventService.Delete(id);
 		return NoContent();
 	}
 }
