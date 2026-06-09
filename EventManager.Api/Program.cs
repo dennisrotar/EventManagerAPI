@@ -1,7 +1,7 @@
-using EventManagerAPI.DataAccess;
 using EventManagerAPI.DataAccess.Configurations;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
+using EventManagerAPI.Repositories;
 using EventManagerAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -50,6 +50,10 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<AppDbContext>(options =>
 	options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Регистрация Репозиториев (Scoped)
+builder.Services.AddScoped<IEventRepository, EventRepository>();
+builder.Services.AddScoped<IBookingRepository, BookingRepository>();
+
 // Регистрация сервисов (Scoped)
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
@@ -59,11 +63,11 @@ builder.Services.AddHostedService<BookingBackgroundService>();
 
 var app = builder.Build();
 
-// Создание схемы БД
+// Применение миграций
 using (var scope = app.Services.CreateScope())
 {
 	var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-	db.Database.EnsureCreated();
+	db.Database.Migrate(); // <-- Замена EnsureCreated()
 }
 
 // Включаем Swagger
