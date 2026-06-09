@@ -16,9 +16,11 @@ public class EventRepository : IEventRepository
 		var queryable = _context.Events.AsNoTracking().AsQueryable();
 
 		if (!string.IsNullOrWhiteSpace(title))
-			queryable = queryable.Where(e => e.Title.Contains(title, StringComparison.OrdinalIgnoreCase));
+			queryable = queryable.Where(e => EF.Functions.ILike(e.Title, $"%{title}%"));
+
 		if (from.HasValue)
 			queryable = queryable.Where(e => e.StartAt >= from.Value);
+
 		if (to.HasValue)
 			queryable = queryable.Where(e => e.EndAt <= to.Value);
 
