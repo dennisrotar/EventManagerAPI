@@ -6,6 +6,7 @@ using EventManagerAPI.Models.DTOs;
 using EventManagerAPI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using EventManagerAPI.Repositories;
 
 namespace EventManagerAPI.Tests;
 
@@ -30,7 +31,9 @@ public class BookingServiceTests : IAsyncLifetime
 		services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(dbName));
 		services.AddLogging();
 
-		// Регистрируем сервисы
+		services.AddScoped<IEventRepository, EventRepository>();
+		services.AddScoped<IBookingRepository, BookingRepository>();
+
 		services.AddScoped<IEventService, EventService>();
 		services.AddScoped<IBookingService, BookingService>();
 
@@ -115,7 +118,7 @@ public class BookingServiceTests : IAsyncLifetime
 		using (var scope = _serviceProvider.CreateScope())
 		{
 			var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-			var domainBooking = await db.Bookings.FindAsync(booking.Id)!;
+			var domainBooking = (await db.Bookings.FindAsync(booking.Id))!;
 			domainBooking.Confirm();
 			await db.SaveChangesAsync();
 		}
@@ -220,10 +223,10 @@ public class BookingServiceTests : IAsyncLifetime
 		using (var scope = _serviceProvider.CreateScope())
 		{
 			var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-			var domainBooking = await db.Bookings.FindAsync(booking1.Id)!;
+			var domainBooking = (await db.Bookings.FindAsync(booking1.Id))!;
 			domainBooking.Reject();
 
-			var eventToUpdate = await db.Events.FindAsync(eventId)!;
+			var eventToUpdate = (await db.Events.FindAsync(eventId))!;
 			eventToUpdate.ReleaseSeats(); // Возвращает 1 место
 
 			await db.SaveChangesAsync(); // Сохраняем в БД
@@ -233,7 +236,7 @@ public class BookingServiceTests : IAsyncLifetime
 		using (var checkScope = _serviceProvider.CreateScope())
 		{
 			var db = checkScope.ServiceProvider.GetRequiredService<AppDbContext>();
-			var eventAfterReject = await db.Events.FindAsync(eventId)!;
+			var eventAfterReject = (await db.Events.FindAsync(eventId))!;
 			Assert.Equal(1, eventAfterReject.AvailableSeats);
 		}
 

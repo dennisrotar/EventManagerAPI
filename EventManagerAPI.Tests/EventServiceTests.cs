@@ -4,6 +4,7 @@ using EventManagerAPI.Models.DTOs;
 using EventManagerAPI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using EventManagerAPI.Repositories;
 
 namespace EventManagerAPI.Tests;
 
@@ -19,6 +20,9 @@ public class EventServiceTests : IAsyncLifetime
 
 		services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(dbName));
 		services.AddLogging();
+
+		services.AddScoped<IEventRepository, EventRepository>();
+
 		services.AddScoped<IEventService, EventService>();
 
 		_serviceProvider = services.BuildServiceProvider();
