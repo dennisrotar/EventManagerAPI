@@ -128,4 +128,17 @@ public class BookingRepositoryTests : IntegrationTestBase
 		// Act & Assert
 		await Assert.ThrowsAsync<DbUpdateException>(() => BookingRepository.SaveChangesAsync(CancellationToken.None));
 	}
+
+	[Fact]
+	public async Task GetById_WhenBookingDoesNotExist_ShouldReturnNull()
+	{
+		// Arrange
+		var nonExistentId = Guid.NewGuid();
+
+		// Act
+		var foundBooking = await BookingRepository.GetByIdAsync(nonExistentId, CancellationToken.None);
+
+		// Assert
+		Assert.Null(foundBooking);
+	}
 }

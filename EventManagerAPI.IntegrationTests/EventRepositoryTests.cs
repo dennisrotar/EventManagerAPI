@@ -89,10 +89,12 @@ public class EventRepositoryTests : IntegrationTestBase
 
 		// Act
 		newEvent.UpdateDetails("New Title", "New Desc", newEvent.StartAt, newEvent.EndAt, 50);
-		EventRepository.Update(newEvent);
+
+		// Убираем явный вызов EventRepository.Update(newEvent); 
+		// EF Core сам отследит изменение свойств у отслеживаемой сущности
 		await EventRepository.SaveChangesAsync(CancellationToken.None);
 
-		// Assert - достаем через новый контекст, чтобы убедиться, что сохранилось в БД, а не только в кэше
+		// Assert
 		var updatedEvent = await EventRepository.GetByIdAsync(newEvent.Id, CancellationToken.None);
 		Assert.NotNull(updatedEvent);
 		Assert.Equal("New Title", updatedEvent.Title);
@@ -115,5 +117,39 @@ public class EventRepositoryTests : IntegrationTestBase
 		// Assert
 		var deletedEvent = await EventRepository.GetByIdAsync(newEvent.Id, CancellationToken.None);
 		Assert.Null(deletedEvent);
+	}
+
+	[Fact]
+	public async Task GetFiltered_ByPagination_ShouldReturnCorrectPage()
+	{
+		// Arrange
+		var baseDate = DateTime.UtcNow;
+		for (int i = 1; i <= 5; i++)
+		{
+			EventRepository.Add(Event.Create($"Event {i}", null, baseDate.AddDays(i), baseDate.AddDays(i + 1), 10));
+		}
+		await EventRepository.SaveChangesAsync(CancellationToken.None);
+
+		// Act: Запрашиваем 2-ю страницу по 2 элемента (должны быть Event 3 и Event 4)
+		var (items, count) = await EventRepository.GetFilteredAsync(null, null, null, page: 2, pageSize: 2, CancellationToken.None);
+
+		// Assert
+		Assert.Equal(5, count); // Всего найдено 5
+		Assert.Equal(2, items.Count); // На странице 2 оказалось ровно 2
+		Assert.Equal("Event 3", items[0].Title);
+		Assert.Equal("Event 4", items[1].Title);
+	}
+
+	[Fact]
+	public async Task GetById_WhenEventDoesNotExist_ShouldReturnNull()
+	{
+		// Arrange
+		var nonExistentId = Guid.NewGuid();
+
+		// Act
+		var foundEvent = await EventRepository.GetByIdAsync(nonExistentId, CancellationToken.None);
+
+		// Assert
+		Assert.Null(foundEvent);
 	}
 }
