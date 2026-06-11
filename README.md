@@ -48,10 +48,11 @@ EventManagerAPI/
 │   ├── BookingServiceTests.cs           
 │   └── DtoValidationTests.cs            
 └── EventManagerAPI.IntegrationTests/    <-- Проект интеграционных тестов (Testcontainers + PostgreSQL)
-	├── Fixtures/                        <-- Настройка жизненного цикла Docker-контейнера
-	├── IntegrationTestBase.cs           <-- Базовый класс с очисткой БД и применением миграций
-	├── EventRepositoryTests.cs
-	└── BookingRepositoryTests.cs        
+    ├── Fixtures/                        <-- Настройка жизненного цикла Docker-контейнера    
+    ├── IntegrationTestBase.cs           <-- Базовый класс с очисткой БД и применением миграций    
+    ├── MigrationTests.cs                <-- Тесты структуры БД (таблицы, FK, ограничения)    
+    ├── EventRepositoryTests.cs          <-- Полное покрытие CRUD и фильтров EventRepository    
+    └── BookingRepositoryTests.cs        <-- Полное покрытие методов BookingRepository
 ```
 
 ## Подготовка и запуск проекта
@@ -156,8 +157,10 @@ dotnet test
 
 - Использует библиотеку **Testcontainers**, которая автоматически скачивает образ, поднимает изолированный контейнер PostgreSQL, выполняет тесты и удаляет контейнер.
 - **Важно:** Для их успешного прохождения обязательно должен быть запущен Docker.
-- Перед каждым тестом база данных приводится к чистому состоянию (`EnsureDeleted()` + `Migrate()`), что гарантирует изолированность и отсутствие флаки (flaky tests).
-- Один контейнер PostgreSQL используется для всех тестов в рамках одного запуска для экономии времени.
+- **Изоляция:** Перед каждым тестом база данных приводится к чистому состоянию (`EnsureDeleted()` + `Migrate()`), что гарантирует независимость тестов друг от друга.
+- **Покрытие репозиториев:** Все тесты оформлены с явными блоками Arrange / Act / Assert. Покрыты абсолютно все методы обоих репозиториев:
+    - **EventRepository:** `GetFilteredAsync` (отдельные тесты для `title`, `from`, `to` и пагинации), `GetByIdAsync`, `Update` (проверка реального сохранения в БД), `Remove`.
+    - **BookingRepository:** `Add` (позитивный сценарий), `GetByIdAsync`, `GetTrackedByIdAsync` (проверка отслеживания сущностей EF Core), `GetEventByIdAsync`, `GetPendingBookingIdsAsync`, негативный тест на нарушение внешнего ключа (FK).
 
 ---
 ## Документация API
