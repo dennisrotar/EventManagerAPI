@@ -1,9 +1,8 @@
-﻿using EventManagerAPI.DataAccess.Configurations;
-using EventManagerAPI.Exceptions;
+﻿using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
 using EventManagerAPI.Models.DTOs;
 using EventManagerAPI.Models.Entities;
-using Microsoft.EntityFrameworkCore;
+using EventManagerAPI.Repositories;
 
 namespace EventManagerAPI.Services;
 
@@ -13,7 +12,7 @@ namespace EventManagerAPI.Services;
 /// </summary>
 public class EventService : IEventService
 {
-	private readonly AppDbContext _context;
+	private readonly IEventRepository _eventRepo;
 	private readonly ILogger<EventService> _logger;
 
 	/// <summary>
@@ -21,29 +20,16 @@ public class EventService : IEventService
 	/// </summary>
 	/// <param name="context">Репозиторий для доступа к данным.</param>
 	/// <param name="logger">Логгер для записи отладочной информации.</param>
-	public EventService(AppDbContext context, ILogger<EventService> logger)
+	public EventService(IEventRepository eventRepo, ILogger<EventService> logger)
 	{
-		_context = context ?? throw new ArgumentNullException(nameof(context));
+		_eventRepo = eventRepo ?? throw new ArgumentNullException(nameof(eventRepo));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
 	public async Task<PaginatedResultDto<EventResponseDto>> GetFiltered(GetEventsQueryParams query)
 	{
 		_logger.LogInformation("Запрос списка событий");
-		var queryable = _context.Events.AsNoTracking().AsQueryable();
-
-		if (!string.IsNullOrWhiteSpace(query.Title))
-			queryable = queryable.Where(e => e.Title.Contains(query.Title, StringComparison.OrdinalIgnoreCase));
-		if (query.From.HasValue)
-			queryable = queryable.Where(e => e.StartAt >= query.From.Value);
-		if (query.To.HasValue)
-			queryable = queryable.Where(e => e.EndAt <= query.To.Value);
-
-		var totalCount = await queryable.CountAsync();
-		var items = await queryable.OrderBy(e => e.StartAt)
-								.Skip((query.Page - 1) * query.PageSize)
-								.Take(query.PageSize)
-								.ToListAsync();
+		var (items, totalCount) = await _eventRepo.GetFilteredAsync(query.Title, query.From, query.To, query.Page, query.PageSize, CancellationToken.None);
 
 		return new PaginatedResultDto<EventResponseDto>
 		{
@@ -56,44 +42,36 @@ public class EventService : IEventService
 
 	public async Task<EventResponseDto> GetById(Guid id)
 	{
-		_logger.LogDebug("Поиск события по ID: {Id}", id);
-
-		var eventEntity = await _context.Events.FindAsync(id)
+		var eventEntity = await _eventRepo.GetByIdAsync(id, CancellationToken.None)
 			?? throw new NotFoundException($"Мероприятие с ID {id} не найдено.");
 		return MapToResponse(eventEntity);
 	}
 
 	public async Task<EventResponseDto> Create(CreateEventRequestDto dto)
 	{
-		_logger.LogInformation("Создание нового события с заголовком: {Title}", dto.Title);
-
 		var newEvent = Event.Create(dto.Title, dto.Description, dto.StartAt, dto.EndAt, dto.TotalSeats);
-		_context.Events.Add(newEvent);
-		await _context.SaveChangesAsync();
+		_eventRepo.Add(newEvent);
+		await _eventRepo.SaveChangesAsync(CancellationToken.None);
 		return MapToResponse(newEvent);
 	}
 
 	public async Task Update(Guid id, UpdateEventRequestDto dto)
 	{
-		_logger.LogInformation("Обновление события с ID: {Id}", id);
-
-		var existingEvent = await _context.Events.FindAsync(id)
+		var existingEvent = await _eventRepo.GetByIdAsync(id, CancellationToken.None)
 			?? throw new NotFoundException($"Мероприятие с ID {id} не найдено.");
 
 		existingEvent.UpdateDetails(dto.Title, dto.Description, dto.StartAt, dto.EndAt, dto.TotalSeats);
-		await _context.SaveChangesAsync();
+		_eventRepo.Update(existingEvent);
+		await _eventRepo.SaveChangesAsync(CancellationToken.None);
 	}
 
 	public async Task Delete(Guid id)
 	{
-		_logger.LogInformation("Удаление события с ID: {Id}", id);
-
-		var existingEvent = await _context.Events.FindAsync(id)
+		var existingEvent = await _eventRepo.GetByIdAsync(id, CancellationToken.None)
 			?? throw new NotFoundException($"Мероприятие с ID {id} не найдено.");
-		_context.Events.Remove(existingEvent);
-		await _context.SaveChangesAsync();
 
-		_logger.LogDebug("Событие с ID: {Id} успешно удалено", id);
+		_eventRepo.Remove(existingEvent);
+		await _eventRepo.SaveChangesAsync(CancellationToken.None);
 	}
 
 	/// <summary>

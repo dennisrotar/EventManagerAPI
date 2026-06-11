@@ -5,6 +5,7 @@ using EventManagerAPI.Models.DTOs;
 using EventManagerAPI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using EventManagerAPI.Repositories;
 
 namespace EventManagerAPI.Tests;
 
@@ -19,6 +20,9 @@ public class BookingServiceConcurrencyTests : IAsyncLifetime
 		services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(dbName));
 		services.AddLogging();
 
+		services.AddScoped<IEventRepository, EventRepository>();
+		services.AddScoped<IBookingRepository, BookingRepository>();
+		
 		services.AddScoped<IEventService, EventService>();
 		services.AddScoped<IBookingService, BookingService>();
 
@@ -55,7 +59,6 @@ public class BookingServiceConcurrencyTests : IAsyncLifetime
 
 		var tasks = Enumerable.Range(0, concurrentTasks).Select(_ => Task.Run(async () =>
 		{
-			// У каждого потока свой scope (и свой DbContext)
 			using var scope = _serviceProvider.CreateScope();
 			var bookingService = scope.ServiceProvider.GetRequiredService<IBookingService>();
 			try { await bookingService.CreateBookingAsync(eventId); }

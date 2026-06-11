@@ -1,10 +1,8 @@
-using EventManagerAPI.DataAccess;
-using EventManagerAPI.DataAccess.Configurations;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
 using EventManagerAPI.Models.DTOs.Booking;
 using EventManagerAPI.Models.Entities;
-using Microsoft.EntityFrameworkCore;
+using EventManagerAPI.Repositories;
 
 namespace EventManagerAPI.Services;
 
@@ -13,15 +11,15 @@ namespace EventManagerAPI.Services;
 /// </summary>
 public class BookingService : IBookingService
 {
-	private readonly AppDbContext _context;
+	private readonly IBookingRepository _bookingRepo;
 	private readonly ILogger<BookingService> _logger;
 
 	// Static, так как сервис Scoped, а нам нужна синхронизация между разными запросами
 	private static readonly SemaphoreSlim _bookingLock = new(1, 1);
 
-	public BookingService(AppDbContext context, ILogger<BookingService> logger)
+	public BookingService(IBookingRepository bookingRepo, ILogger<BookingService> logger)
 	{
-		_context = context ?? throw new ArgumentNullException(nameof(context));
+		_bookingRepo = bookingRepo ?? throw new ArgumentNullException(nameof(bookingRepo));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
@@ -30,29 +28,18 @@ public class BookingService : IBookingService
 	/// </summary>
 	public async Task<BookingResponseDto> CreateBookingAsync(Guid eventId)
 	{
-		_logger.LogInformation("Попытка создания брони для события {EventId}", eventId);
-
 		await _bookingLock.WaitAsync();
 		try
 		{
-
-			// AsNoTracking не подходит, так как будем менять AvailableSeats
-			var eventEntity = await _context.Events.FirstOrDefaultAsync(e => e.Id == eventId)
+			var eventEntity = await _bookingRepo.GetEventByIdAsync(eventId, CancellationToken.None)
 				?? throw new NotFoundException($"Мероприятие с ID {eventId} не найдено.");
 
 			if (!eventEntity.TryReserveSeats())
-			{
-				_logger.LogWarning("Нет свободных мест для события {EventId}", eventId);
 				throw new NoAvailableSeatsException("Свободных мест на это мероприятие нет.");
-			}
 
 			var booking = Booking.CreatePending(eventId);
-			_context.Bookings.Add(booking);
-
-			// Один вызов SaveChanges сохранит и обновленное событие, и новую бронь
-			await _context.SaveChangesAsync();
-
-			_logger.LogInformation("Бронь {BookingId} успешно создана", booking.Id);
+			_bookingRepo.Add(booking);
+			await _bookingRepo.SaveChangesAsync(CancellationToken.None);
 
 			return MapToDto(booking);
 		}
@@ -64,9 +51,8 @@ public class BookingService : IBookingService
 	/// </summary>
 	public async Task<BookingResponseDto> GetBookingByIdAsync(Guid bookingId)
 	{
-		var booking = await _context.Bookings.AsNoTracking().FirstOrDefaultAsync(b => b.Id == bookingId)
+		var booking = await _bookingRepo.GetByIdAsync(bookingId, CancellationToken.None)
 			?? throw new NotFoundException($"Бронирование с ID {bookingId} не найдена.");
-
 		return MapToDto(booking);
 	}
 

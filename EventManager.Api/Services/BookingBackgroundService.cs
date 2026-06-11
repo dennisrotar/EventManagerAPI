@@ -1,12 +1,12 @@
-using EventManagerAPI.DataAccess;
 using EventManagerAPI.DataAccess.Configurations;
 using EventManagerAPI.Interfaces;
 using EventManagerAPI.Models.Entities;
+using EventManagerAPI.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace EventManagerAPI.DataAccess;
+namespace EventManagerAPI.Services;
 
 /// <summary>
 /// Фоновый сервис для имитации отложенной обработки бронирований.
@@ -37,11 +37,8 @@ public class BookingBackgroundService : BackgroundService
 			// Создаем scope только для чтения ID (освобождаем быстро)
 			using (var readScope = _scopeFactory.CreateScope())
 			{
-				var context = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
-				pendingIds = context.Bookings
-					.Where(b => b.Status == BookingStatus.Pending)
-					.Select(b => b.Id)
-					.ToList();
+				var bookingRepo = readScope.ServiceProvider.GetRequiredService<IBookingRepository>();
+				pendingIds = await bookingRepo.GetPendingBookingIdsAsync(stoppingToken);
 			}
 
 			if (pendingIds.Any())
@@ -63,26 +60,26 @@ public class BookingBackgroundService : BackgroundService
 
 		// Создаем изолированный scope для обработки конкретной брони
 		using var scope = _scopeFactory.CreateScope();
-		var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+		var bookingRepo = scope.ServiceProvider.GetRequiredService<IBookingRepository>();
 
 		try
 		{
 			await Task.Delay(ProcessingDelayMs, stoppingToken);
 
-			var booking = await context.Bookings.FindAsync(bookingId);
+			var booking = await bookingRepo.GetTrackedByIdAsync(bookingId, stoppingToken);
 			if (booking == null) return;
 
-			var eventEntity = await context.Events.FindAsync(booking.EventId);
+			var eventEntity = await bookingRepo.GetEventByIdAsync(booking.EventId, stoppingToken);
 			if (eventEntity == null)
 			{
 				booking.Reject();
-				await context.SaveChangesAsync();
+				await bookingRepo.SaveChangesAsync(stoppingToken);
 				_logger.LogWarning("Событие удалено. Бронь {Id} отклонена", bookingId);
 				return;
 			}
 
 			booking.Confirm();
-			await context.SaveChangesAsync();
+			await bookingRepo.SaveChangesAsync(stoppingToken);
 			_logger.LogInformation("Бронь {Id} подтверждена", bookingId);
 		}
 		catch (OperationCanceledException)
