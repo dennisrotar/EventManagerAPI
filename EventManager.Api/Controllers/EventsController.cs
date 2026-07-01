@@ -1,4 +1,4 @@
-﻿using EventManagerAPI.Interfaces;
+﻿using EventManager.Application.Interfaces;
 using EventManagerAPI.Models.DTOs;
 using EventManagerAPI.Models.DTOs.Booking;
 using Microsoft.AspNetCore.Mvc;

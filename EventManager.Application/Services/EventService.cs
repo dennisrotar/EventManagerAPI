@@ -1,13 +1,15 @@
-﻿using EventManager.Application.Interfaces;
-using EventManagerAPI.Exceptions;
-using EventManagerAPI.Models.DTOs;
-using EventManagerAPI.Models.Entities;
+﻿using EventManager.Application.DTOs;
+using EventManager.Application.Interfaces;
+using EventManager.Domain.Entities;
+using EventManager.Domain.Exceptions;
+using Microsoft.Extensions.Logging;
 
-namespace EventManagerAPI.Services;
+namespace EventManager.Application.Services;
 
 /// <summary>
-/// Реализация доменного сервиса мероприятий.
-/// Зарегистрирована как Scoped, так как не имеет состояния и привязана к обработке конкретного запроса.
+/// Реализация use case сервиса мероприятий.
+/// Содержит бизнес-логику CRUD-операций над мероприятиями.
+/// Зависит только от Domain (сущности, исключения) и интерфейсов портов (IEventRepository).
 /// </summary>
 public class EventService : IEventService
 {
@@ -15,9 +17,9 @@ public class EventService : IEventService
 	private readonly ILogger<EventService> _logger;
 
 	/// <summary>
-	/// Инициализирует новый экземпляр <see cref="EventService"/> с внедрением зависимостей.
+	/// Конструктор с внедрением зависимостей.
 	/// </summary>
-	/// <param name="context">Репозиторий для доступа к данным.</param>
+	/// <param name="eventRepo">Порт репозитория мероприятий (реализация в Infrastructure).</param>
 	/// <param name="logger">Логгер для записи отладочной информации.</param>
 	public EventService(IEventRepository eventRepo, ILogger<EventService> logger)
 	{
@@ -25,11 +27,16 @@ public class EventService : IEventService
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
+	/// <inheritdoc/>
 	public async Task<PaginatedResultDto<EventResponseDto>> GetFiltered(GetEventsQueryParams query)
 	{
 		_logger.LogInformation("Запрос списка событий");
-		var (items, totalCount) = await _eventRepo.GetFilteredAsync(query.Title, query.From, query.To, query.Page, query.PageSize, CancellationToken.None);
 
+		// Делегируем фильтрацию репозиторию (Infrastructure)
+		var (items, totalCount) = await _eventRepo.GetFilteredAsync(
+			query.Title, query.From, query.To, query.Page, query.PageSize, CancellationToken.None);
+
+		// Маппим доменные сущности в DTO
 		return new PaginatedResultDto<EventResponseDto>
 		{
 			TotalCount = totalCount,
@@ -39,6 +46,7 @@ public class EventService : IEventService
 		};
 	}
 
+	/// <inheritdoc/>
 	public async Task<EventResponseDto> GetById(Guid id)
 	{
 		var eventEntity = await _eventRepo.GetByIdAsync(id, CancellationToken.None)
@@ -46,24 +54,29 @@ public class EventService : IEventService
 		return MapToResponse(eventEntity);
 	}
 
+	/// <inheritdoc/>
 	public async Task<EventResponseDto> Create(CreateEventRequestDto dto)
 	{
+		// Используем фабричный метод доменной сущности (валидация внутри)
 		var newEvent = Event.Create(dto.Title, dto.Description, dto.StartAt, dto.EndAt, dto.TotalSeats);
 		_eventRepo.Add(newEvent);
 		await _eventRepo.SaveChangesAsync(CancellationToken.None);
 		return MapToResponse(newEvent);
 	}
 
+	/// <inheritdoc/>
 	public async Task Update(Guid id, UpdateEventRequestDto dto)
 	{
 		var existingEvent = await _eventRepo.GetByIdAsync(id, CancellationToken.None)
 			?? throw new NotFoundException($"Мероприятие с ID {id} не найдено.");
 
+		// Бизнес-правило инкапсулировано в доменной сущности
 		existingEvent.UpdateDetails(dto.Title, dto.Description, dto.StartAt, dto.EndAt, dto.TotalSeats);
 		_eventRepo.Update(existingEvent);
 		await _eventRepo.SaveChangesAsync(CancellationToken.None);
 	}
 
+	/// <inheritdoc/>
 	public async Task Delete(Guid id)
 	{
 		var existingEvent = await _eventRepo.GetByIdAsync(id, CancellationToken.None)
@@ -74,10 +87,8 @@ public class EventService : IEventService
 	}
 
 	/// <summary>
-	/// Вспомогательный метод для маппинга доменной сущности в DTO ответа.
+	/// Приватный метод маппинга доменной сущности Event в DTO ответа.
 	/// </summary>
-	/// <param name="e">Доменная сущность Event.</param>
-	/// <returns>DTO для клиентского ответа.</returns>
 	private static EventResponseDto MapToResponse(Event e) => new()
 	{
 		Id = e.Id,

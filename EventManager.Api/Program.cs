@@ -1,6 +1,6 @@
+using EventManager.Application.Interfaces;
 using EventManagerAPI.DataAccess.Configurations;
 using EventManagerAPI.Exceptions;
-using EventManagerAPI.Interfaces;
 using EventManagerAPI.Repositories;
 using EventManagerAPI.Services;
 using Microsoft.AspNetCore.Mvc;

@@ -1,41 +1,51 @@
+using EventManager.Application.DTOs.Booking;
 using EventManager.Application.Interfaces;
 using EventManager.Domain.Entities;
-using EventManagerAPI.Exceptions;
-using EventManagerAPI.Models.DTOs.Booking;
+using EventManager.Domain.Exceptions;
+using Microsoft.Extensions.Logging;
 
-namespace EventManagerAPI.Services;
+namespace EventManager.Application.Services;
 
 /// <summary>
-/// Реализация сервиса бронирований.
+/// Реализация use case сервиса бронирований.
+/// Содержит бизнес-логику создания и получения бронирований.
+/// Зависит только от Domain (сущности, исключения) и интерфейсов портов (IBookingRepository).
 /// </summary>
 public class BookingService : IBookingService
 {
 	private readonly IBookingRepository _bookingRepo;
 	private readonly ILogger<BookingService> _logger;
 
-	// Static, так как сервис Scoped, а нам нужна синхронизация между разными запросами
+	// Static SemaphoreSlim, так как сервис Scoped, а нужна синхронизация между запросами
 	private static readonly SemaphoreSlim _bookingLock = new(1, 1);
 
+	/// <summary>
+	/// Конструктор с внедрением зависимостей.
+	/// </summary>
+	/// <param name="bookingRepo">Порт репозитория бронирований (реализация в Infrastructure).</param>
+	/// <param name="logger">Логгер.</param>
 	public BookingService(IBookingRepository bookingRepo, ILogger<BookingService> logger)
 	{
 		_bookingRepo = bookingRepo ?? throw new ArgumentNullException(nameof(bookingRepo));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
-	/// <summary>
-	/// Создает бронь. Проверяет существование события и доступность мест.
-	/// </summary>
+	/// <inheritdoc/>
 	public async Task<BookingResponseDto> CreateBookingAsync(Guid eventId)
 	{
+		// Синхронизация: только один поток может бронировать одновременно
 		await _bookingLock.WaitAsync();
 		try
 		{
+			// 1. Проверить существование мероприятия
 			var eventEntity = await _bookingRepo.GetEventByIdAsync(eventId, CancellationToken.None)
 				?? throw new NotFoundException($"Мероприятие с ID {eventId} не найдено.");
 
+			// 2. Проверить доступность мест (бизнес-правило в доменной сущности)
 			if (!eventEntity.TryReserveSeats())
 				throw new NoAvailableSeatsException("Свободных мест на это мероприятие нет.");
 
+			// 3. Создать бронь (фабричный метод доменной сущности)
 			var booking = Booking.CreatePending(eventId);
 			_bookingRepo.Add(booking);
 			await _bookingRepo.SaveChangesAsync(CancellationToken.None);
@@ -45,16 +55,17 @@ public class BookingService : IBookingService
 		finally { _bookingLock.Release(); }
 	}
 
-	/// <summary>
-	/// Получает информацию о брони. 
-	/// </summary>
+	/// <inheritdoc/>
 	public async Task<BookingResponseDto> GetBookingByIdAsync(Guid bookingId)
 	{
 		var booking = await _bookingRepo.GetByIdAsync(bookingId, CancellationToken.None)
-			?? throw new NotFoundException($"Бронирование с ID {bookingId} не найдена.");
+			?? throw new NotFoundException($"Бронирование с ID {bookingId} не найдено.");
 		return MapToDto(booking);
 	}
 
+	/// <summary>
+	/// Приватный метод маппинга доменной сущности Booking в DTO ответа.
+	/// </summary>
 	private static BookingResponseDto MapToDto(Booking b) => new()
 	{
 		Id = b.Id,
