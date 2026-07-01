@@ -1,4 +1,5 @@
-﻿using EventManagerAPI.Models.Entities;
+﻿using EventManager.Domain.Entities;
+using EventManagerAPI.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace EventManagerAPI.DataAccess.Configurations;

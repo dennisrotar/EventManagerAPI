@@ -1,4 +1,4 @@
-namespace EventManagerAPI.Models.Entities;
+namespace EventManager.Domain.Entities;
 
 /// <summary>
 /// Перечисление возможных статусов бронирования.

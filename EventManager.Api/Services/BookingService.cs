@@ -1,7 +1,7 @@
+using EventManager.Domain.Entities;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
 using EventManagerAPI.Models.DTOs.Booking;
-using EventManagerAPI.Models.Entities;
 using EventManagerAPI.Repositories;
 
 namespace EventManagerAPI.Services;

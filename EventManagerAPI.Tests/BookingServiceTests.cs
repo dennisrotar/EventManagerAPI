@@ -1,12 +1,12 @@
 ﻿using EventManagerAPI.DataAccess.Configurations;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Interfaces;
-using EventManagerAPI.Models.Entities;
 using EventManagerAPI.Models.DTOs;
 using EventManagerAPI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using EventManagerAPI.Repositories;
+using EventManager.Domain.Entities;
 
 namespace EventManagerAPI.Tests;
 

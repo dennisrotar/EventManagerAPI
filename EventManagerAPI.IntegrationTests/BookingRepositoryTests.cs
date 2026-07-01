@@ -1,4 +1,5 @@
-﻿using EventManagerAPI.IntegrationTests.Fixtures;
+﻿using EventManager.Domain.Entities;
+using EventManagerAPI.IntegrationTests.Fixtures;
 using EventManagerAPI.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;

@@ -1,7 +1,10 @@
-namespace EventManagerAPI.Models.Entities;
+namespace EventManager.Domain.Entities;
 
 /// <summary>
 /// Доменная модель бронирования мероприятия.
+/// Инкапсулирует бизнес-правила: создание со статусом Pending,
+/// подтверждение, отклонение.
+/// Не зависит от инфраструктуры (EF Core, ASP.NET и т.д.).
 /// </summary>
 public class Booking
 {

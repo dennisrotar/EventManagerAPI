@@ -1,4 +1,4 @@
-using EventManagerAPI.Models.Entities;
+using EventManager.Domain.Entities;
 
 namespace EventManagerAPI.Models.DTOs.Booking;
 

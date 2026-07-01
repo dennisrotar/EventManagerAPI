@@ -1,4 +1,5 @@
-﻿using EventManagerAPI.Models.Entities;
+﻿using EventManager.Domain.Entities;
+using EventManagerAPI.Models.Entities;
 
 namespace EventManagerAPI.Repositories;
 
