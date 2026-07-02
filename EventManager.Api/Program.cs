@@ -1,21 +1,24 @@
-using EventManager.Application.Interfaces;
+using EventManager.Application;
+using EventManager.Infrastructure;
 using EventManager.Infrastructure.DataAccess;
 using EventManagerAPI.Exceptions;
-using EventManagerAPI.Repositories;
-using EventManagerAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Подключаем Problem Details для красивых ошибок валидации
+// ════════════
+// Framework Services
+// ════════════
+
+// Problem Details для красивых ошибок
 builder.Services.AddProblemDetails();
 
 builder.Services.AddControllers()
 	.AddJsonOptions(options =>
 	{
-		// Заставляем сериализатор возвращать enum'ы в виде строк ("Confirmed" вместо 1)
+		// Enum'ы в виде строк ("Confirmed" вместо 1)
 		options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 	});
 
@@ -31,46 +34,41 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 			Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
 			Instance = context.HttpContext.Request.Path
 		};
-
-		// Явно добавляем traceId в расширения
 		problemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
-
 		return new BadRequestObjectResult(problemDetails);
 	};
 });
 
-// Подключаем наш, глобальный обработчик исключений.
+// Глобальный обработчик исключений (маппит DomainException → HTTP)
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-// Настройка Swagger
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Регистрация DbContext (Scoped)
-builder.Services.AddDbContext<AppDbContext>(options =>
-	options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// ════════════════════════════════════
+// Application Layer — бизнес-сервисы и фоновые сервисы
+// ════════════════════════════════════
+builder.Services.AddApplicationServices();
 
-// Регистрация Репозиториев (Scoped)
-builder.Services.AddScoped<IEventRepository, EventRepository>();
-builder.Services.AddScoped<IBookingRepository, BookingRepository>();
+// ════════════════════════════════════════════
+// Infrastructure Layer — DbContext, репозитории (реализации портов)
+// ════════════════════════════════════════════
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
-// Регистрация сервисов (Scoped)
-builder.Services.AddScoped<IEventService, EventService>();
-builder.Services.AddScoped<IBookingService, BookingService>();
-
-// Фоновый сервис (Singleton)
-builder.Services.AddHostedService<BookingBackgroundService>();
-
+// ════
+// Build
+// ════
 var app = builder.Build();
 
-// Применение миграций
+// Применение миграций при старте
 using (var scope = app.Services.CreateScope())
 {
 	var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-	db.Database.Migrate(); // <-- Замена EnsureCreated()
+	db.Database.Migrate();
 }
 
-// Включаем Swagger
+// Swagger (только в Development)
 if (app.Environment.IsDevelopment())
 {
 	app.UseSwagger();
@@ -79,8 +77,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Включаем встроенный pipeline обработки исключений, 
-// который теперь будет делегировать работу нашему GlobalExceptionHandler
+// Включаем pipeline обработки исключений → делегирует GlobalExceptionHandler
 app.UseExceptionHandler();
 app.UseAuthorization();
 app.MapControllers();
