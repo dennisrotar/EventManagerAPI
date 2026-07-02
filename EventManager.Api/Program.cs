@@ -1,5 +1,5 @@
 using EventManager.Application.Interfaces;
-using EventManagerAPI.DataAccess.Configurations;
+using EventManager.Infrastructure.DataAccess;
 using EventManagerAPI.Exceptions;
 using EventManagerAPI.Repositories;
 using EventManagerAPI.Services;

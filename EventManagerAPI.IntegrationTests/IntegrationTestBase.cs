@@ -1,5 +1,5 @@
 ﻿using EventManager.Application.Interfaces;
-using EventManagerAPI.DataAccess.Configurations;
+using EventManager.Infrastructure.DataAccess;
 using EventManagerAPI.IntegrationTests.Fixtures;
 using EventManagerAPI.Repositories;
 using Microsoft.EntityFrameworkCore;
