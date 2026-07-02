@@ -26,7 +26,8 @@ public static class DependencyInjection
 	{
 		// Регистрация DbContext с PostgreSQL провайдером (Scoped — по одному на HTTP-запрос)
 		services.AddDbContext<AppDbContext>(options =>
-			options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+		options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"),
+			b => b.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
 
 		// Регистрация реализаций портов (адаптеров) — Scoped
 		services.AddScoped<IEventRepository, EventRepository>();
