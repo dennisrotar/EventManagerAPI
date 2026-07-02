@@ -1,6 +1,8 @@
-﻿using EventManager.Domain.Entities;
+﻿using EventManager.Application.Interfaces;              
+using EventManager.Domain.Entities;
+using EventManager.Infrastructure.DataAccess;           
+using EventManager.Infrastructure.Repositories;         
 using EventManagerAPI.IntegrationTests.Fixtures;
-using EventManagerAPI.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -11,6 +13,9 @@ public class BookingRepositoryTests : IntegrationTestBase
 {
 	public BookingRepositoryTests(PostgreSqlFixture fixture) : base(fixture) { }
 
+	/// <summary>
+	/// Вспомогательный метод: создаёт тестовое мероприятие в БД.
+	/// </summary>
 	private async Task<Event> CreateTestEventInDb()
 	{
 		var eventEntity = Event.Create("Test Event", null, DateTime.UtcNow.AddDays(1), DateTime.UtcNow.AddDays(2), 100);
@@ -69,11 +74,10 @@ public class BookingRepositoryTests : IntegrationTestBase
 		// Assert
 		Assert.NotNull(trackedBooking);
 
-		// Доказываем, что сущность отслеживается: меняем статус и сохраняем без явного вызова Update()
+		// Доказываем, что сущность отслеживается EF Core
 		trackedBooking.Confirm();
 		await BookingRepository.SaveChangesAsync(CancellationToken.None);
 
-		// Проверяем через не-отслеживаемый запрос, что статус реально изменился в БД
 		var fromDb = await BookingRepository.GetByIdAsync(booking.Id, CancellationToken.None);
 		Assert.Equal(BookingStatus.Confirmed, fromDb!.Status);
 	}
@@ -102,7 +106,7 @@ public class BookingRepositoryTests : IntegrationTestBase
 		var booking2 = Booking.CreatePending(eventEntity.Id);
 		var booking3 = Booking.CreatePending(eventEntity.Id);
 
-		booking2.Confirm(); // Меняем статус локально
+		booking2.Confirm();
 
 		BookingRepository.Add(booking1);
 		BookingRepository.Add(booking2);

@@ -1,4 +1,5 @@
-﻿using EventManagerAPI.IntegrationTests.Fixtures;
+﻿using EventManager.Infrastructure.DataAccess;
+using EventManagerAPI.IntegrationTests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -12,9 +13,9 @@ public class MigrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Migrate_ShouldCreateEventsAndBookingsTables()
 	{
-		// Arrange & Act (Миграция уже применилась в базовом классе IntegrationTestBase)
+		// Arrange & Act — миграция уже применилась в IntegrationTestBase
 
-		// Assert - Проверяем наличие таблиц через запрос к information_schema
+		// Assert — проверяем наличие таблиц
 		var tables = await DbContext.Database.SqlQueryRaw<string>(
 			"SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'")
 			.ToListAsync();
@@ -26,9 +27,7 @@ public class MigrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Migrate_ShouldCreateForeignKeyConstraint()
 	{
-		// Arrange & Act
-
-		// Assert - Ищем конкретный внешний ключ
+		// Assert — ищем внешний ключ
 		var constraints = await DbContext.Database.SqlQueryRaw<string>(
 			"SELECT constraint_name FROM information_schema.table_constraints WHERE constraint_type = 'FOREIGN KEY' AND table_name = 'bookings'")
 			.ToListAsync();
@@ -39,9 +38,7 @@ public class MigrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Migrate_EventsTable_ShouldHaveCorrectColumnsAndConstraints()
 	{
-		// Arrange & Act (Миграция уже применилась в базовом классе)
-
-		// Assert - Проверяем, что колонка Title имеет ограничение NOT NULL через чистый ADO.NET
+		// Assert — проверяем NOT NULL у Title через ADO.NET
 		await using var connection = DbContext.Database.GetDbConnection();
 		await connection.OpenAsync();
 
@@ -49,8 +46,6 @@ public class MigrationTests : IntegrationTestBase
 		command.CommandText = "SELECT is_nullable FROM information_schema.columns WHERE table_name = 'events' AND column_name = 'Title'";
 
 		var result = await command.ExecuteScalarAsync();
-
-		// В PostgreSQL 'NO' означает, что колонка NOT NULL
 		Assert.Equal("NO", result?.ToString());
 	}
 }

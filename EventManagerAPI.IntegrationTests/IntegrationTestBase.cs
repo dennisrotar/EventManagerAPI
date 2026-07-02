@@ -1,11 +1,16 @@
 ﻿using EventManager.Application.Interfaces;
 using EventManager.Infrastructure.DataAccess;
+using EventManager.Infrastructure.Repositories;
 using EventManagerAPI.IntegrationTests.Fixtures;
-using EventManagerAPI.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace EventManagerAPI.IntegrationTests;
 
+/// <summary>
+/// Базовый класс для интеграционных тестов.
+/// Создаёт реальное подключение к PostgreSQL (через Testcontainers)
+/// и инициализирует репозитории.
+/// </summary>
 public class IntegrationTestBase : IAsyncLifetime
 {
 	protected AppDbContext DbContext = null!;

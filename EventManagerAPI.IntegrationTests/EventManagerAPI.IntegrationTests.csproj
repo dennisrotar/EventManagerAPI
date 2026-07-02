@@ -20,8 +20,11 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\EventManager.Api\EventManagerAPI.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<!-- Интеграционные тесты → Infrastructure (DbContext, репозитории) -->
+		<ProjectReference Include="..\EventManager.Infrastructure\EventManager.Infrastructure.csproj" />
+		<!-- Application — для интерфейсов портов -->
+		<ProjectReference Include="..\EventManager.Application\EventManager.Application.csproj" />
+	</ItemGroup>
 
 </Project>
