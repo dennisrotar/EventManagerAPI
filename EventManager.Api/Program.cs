@@ -1,36 +1,73 @@
 using EventManager.Application;
 using EventManager.Infrastructure;
-using System.Runtime.CompilerServices;
-
-[assembly: InternalsVisibleTo("EventManagerAPI.Tests")]
-[assembly: InternalsVisibleTo("EventManagerAPI.IntegrationTests")]
+using EventManager.Infrastructure.DataAccess;
+using EventManagerAPI.Exceptions;using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ──────────────────────────────────────────────
-// Clean Architecture: Composition Root
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════════
+// Framework Services
+// ═══════════════════════════════════════════════════
 
-// Сервисы Application-слоя (DTO, интерфейсы-порты, бизнес-логика)
-builder.Services.AddApplicationServices();
+// Problem Details для красивых ошибок
+builder.Services.AddProblemDetails();
 
-// Сервисы Infrastructure-слоя (EF Core, репозитории, БД)
-builder.Services.AddInfrastructureServices(builder.Configuration);
+builder.Services.AddControllers()
+	.AddJsonOptions(options =>
+	{
+		// Enum'ы в виде строк ("Confirmed" вместо 1)
+		options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+	});
 
-// ──────────────────────────────────────────────
-// Presentation-слой: контроллеры, Swagger, etc.
-// ──────────────────────────────────────────────
+// Настройка единого формата для ошибок 400 (валидация)
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+	options.InvalidModelStateResponseFactory = context =>
+	{
+		var problemDetails = new ValidationProblemDetails(context.ModelState)
+		{
+			Status = 400,
+			Title = "One or more validation errors occurred.",
+			Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+			Instance = context.HttpContext.Request.Path
+		};
+		problemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+		return new BadRequestObjectResult(problemDetails);
+	};
+});
 
-builder.Services.AddControllers();
+// Глобальный обработчик исключений (маппит DomainException → HTTP)
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// ═══════════════════════════════════════════════════
+// Application Layer — бизнес-сервисы и фоновые сервисы
+// ═══════════════════════════════════════════════════
+builder.Services.AddApplicationServices();
+
+// ═══════════════════════════════════════════════════
+// Infrastructure Layer — DbContext, репозитории (реализации портов)
+// ═══════════════════════════════════════════════════
+builder.Services.AddInfrastructureServices(builder.Configuration);
+
+// ═══════════════════════════════════════════════════
+// Build
+// ═══════════════════════════════════════════════════
 var app = builder.Build();
 
-// ──────────────────────────────────────────────
-// Pipeline
-// ──────────────────────────────────────────────
+// Применение миграций при старте
+using (var scope = app.Services.CreateScope())
+{
+	var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+	db.Database.Migrate();
+}
 
+// Swagger (только в Development)
 if (app.Environment.IsDevelopment())
 {
 	app.UseSwagger();
@@ -38,12 +75,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Включаем pipeline обработки исключений → делегирует GlobalExceptionHandler
+app.UseExceptionHandler();
 app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
-// ──────────────────────────────────────────────
-// Для интеграционных тестов (WebApplicationFactory<Program>)
-// ──────────────────────────────────────────────
-public partial class Program { }
