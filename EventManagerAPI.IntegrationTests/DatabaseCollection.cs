@@ -1,9 +1,12 @@
-﻿using EventManagerAPI.IntegrationTests.Fixtures;
+﻿using EventManager.Infrastructure.DataAccess;
+using EventManagerAPI.IntegrationTests.Fixtures;
 using Xunit;
 
 namespace EventManagerAPI.IntegrationTests;
 
-// Объединяем все тесты с этим атрибутом в одну группу и используем один экземпляр PostgreSqlFixture.
+/// <summary>
+/// Объединяет все тесты в одну группу с общим экземпляром PostgreSqlFixture.
+/// </summary>
 [CollectionDefinition("DatabaseTestCollection")]
 public class DatabaseCollection : ICollectionFixture<PostgreSqlFixture>
 {

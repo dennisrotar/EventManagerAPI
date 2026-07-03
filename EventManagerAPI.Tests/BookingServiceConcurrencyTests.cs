@@ -1,11 +1,12 @@
-﻿using EventManagerAPI.DataAccess.Configurations;
-using EventManagerAPI.Exceptions;
-using EventManagerAPI.Interfaces;
-using EventManagerAPI.Models.DTOs;
-using EventManagerAPI.Services;
+﻿using EventManager.Application.DTOs;
+using EventManager.Application.Interfaces;
+using EventManager.Application.Services;
+using EventManager.Domain.Exceptions;
+using EventManager.Infrastructure.DataAccess;
+using EventManager.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using EventManagerAPI.Repositories;
+using Xunit;
 
 namespace EventManagerAPI.Tests;
 
@@ -22,7 +23,7 @@ public class BookingServiceConcurrencyTests : IAsyncLifetime
 
 		services.AddScoped<IEventRepository, EventRepository>();
 		services.AddScoped<IBookingRepository, BookingRepository>();
-		
+
 		services.AddScoped<IEventService, EventService>();
 		services.AddScoped<IBookingService, BookingService>();
 

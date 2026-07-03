@@ -1,13 +1,14 @@
-﻿using Microsoft.AspNetCore.Diagnostics;
+﻿using EventManager.Domain.Exceptions;           // ← ИЗМЕНЕНО: было EventManagerAPI.Exceptions
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventManagerAPI.Exceptions;
 
 /// <summary>
 /// Глобальный обработчик исключений.
-/// Отвечает СТРОГО за перехват необработанных бизнес-исключений (BaseApiException) 
-/// и непредвиденных ошибок сервера (Exception).
-/// Ошибки валидации (400) обрабатываются слоем выше (ApiBehaviorOptions в Program.cs) и сюда не попадают.
+/// Перехватывает доменные исключения (DomainException) и маппит их в HTTP-ответы.
+/// Ошибки валидации (400) обрабатываются слоем выше (ApiBehaviorOptions в Program.cs)
+/// и сюда не попадают.
 /// </summary>
 public class GlobalExceptionHandler : IExceptionHandler
 {
@@ -18,6 +19,10 @@ public class GlobalExceptionHandler : IExceptionHandler
 		_logger = logger;
 	}
 
+	/// <summary>
+	/// Пытается обработать исключение.
+	/// </summary>
+	/// <returns>True — исключение обработано; False — передать следующему обработчику.</returns>
 	public async ValueTask<bool> TryHandleAsync(
 		HttpContext httpContext,
 		Exception exception,
@@ -27,27 +32,27 @@ public class GlobalExceptionHandler : IExceptionHandler
 
 		ProblemDetails problemDetails;
 
-		// Проверяем, является ли ошибка нашей бизнес-ошибкой (наследником BaseApiException)
-		if (exception is BaseApiException apiException)
+		// Проверяем: является ли ошибка доменной (наследником DomainException)
+		if (exception is DomainException domainException)        // ← ИЗМЕНЕНО: было BaseApiException
 		{
-			// Берем статусы ПРЯМО из самого исключения (масштабируемость)
+			// Берём данные из самого исключения (StatusCode — int, ErrorTitle, ErrorType)
 			problemDetails = new ProblemDetails
 			{
-				Status = apiException.StatusCode,
-				Title = apiException.Title,
-				Detail = apiException.Message,
-				Type = apiException.Type,
+				Status = domainException.StatusCode,             // ← ИЗМЕНЕНО: без изменений (уже int)
+				Title = domainException.ErrorTitle,              // ← ИЗМЕНЕНО: было .Title
+				Detail = domainException.Message,
+				Type = domainException.ErrorType,                // ← ИЗМЕНЕНО: было .Type
 				Instance = httpContext.Request.Path
 			};
 		}
 		else
 		{
-			// Если это что-то непредвиденное (например, ошибка доступа к БД в будущем)
+			// Непредвиденная ошибка (например, ошибка доступа к БД)
 			problemDetails = new ProblemDetails
 			{
 				Status = StatusCodes.Status500InternalServerError,
 				Title = "Internal Server Error",
-				Detail = "Произошла непредвиденная ошибка на сервере.", // Для 500 не стоит светить детали exception.Message
+				Detail = "Произошла непредвиденная ошибка на сервере.",
 				Type = "https://tools.ietf.org/html/rfc9110#section-15.6.1",
 				Instance = httpContext.Request.Path
 			};

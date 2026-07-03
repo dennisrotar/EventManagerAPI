@@ -1,18 +1,20 @@
-﻿using EventManagerAPI.DataAccess.Configurations;
-using EventManagerAPI.Exceptions;
-using EventManagerAPI.Interfaces;
-using EventManagerAPI.Models.Entities;
-using EventManagerAPI.Models.DTOs;
-using EventManagerAPI.Services;
+﻿using EventManager.Application.DTOs;                    
+using EventManager.Application.DTOs.Booking;            
+using EventManager.Application.Interfaces;            
+using EventManager.Application.Services;                
+using EventManager.Domain.Entities;                     
+using EventManager.Domain.Exceptions;                   
+using EventManager.Infrastructure.DataAccess;
+using EventManager.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using EventManagerAPI.Repositories;
+using Xunit;
 
 namespace EventManagerAPI.Tests;
 
 /// <summary>
-/// Класс юнит-тестов для сервиса бронирований.
-/// Использует InMemory-провайдер EF Core для изоляции тестов от реальной БД.
+/// Юнит-тесты для сервиса бронирований.
+/// Использует InMemory-провайдер EF Core для изоляции от реальной БД.
 /// </summary>
 public class BookingServiceTests : IAsyncLifetime
 {
@@ -24,28 +26,29 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		var services = new ServiceCollection();
 
-		// Создаем уникальную базу данных для этого класса тестов
+		// Уникальная InMemory БД для этого класса тестов
 		var dbName = Guid.NewGuid().ToString();
 
 		// Регистрируем DbContext с InMemory провайдером
 		services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(dbName));
 		services.AddLogging();
 
+		// Регистрируем репозитории (Infrastructure-реализации портов)
 		services.AddScoped<IEventRepository, EventRepository>();
 		services.AddScoped<IBookingRepository, BookingRepository>();
 
+		// Регистрируем сервисы (Application-слой)
 		services.AddScoped<IEventService, EventService>();
 		services.AddScoped<IBookingService, BookingService>();
 
 		_serviceProvider = services.BuildServiceProvider();
 
-		// Получаем сервисы для использования в тестах
 		_eventService = _serviceProvider.GetRequiredService<IEventService>();
 		_bookingService = _serviceProvider.GetRequiredService<IBookingService>();
 	}
 
 	/// <summary>
-	/// Очищает базу данных перед каждым тестом, чтобы тесты были независимыми.
+	/// Очищает БД перед каждым тестом.
 	/// </summary>
 	public async Task InitializeAsync()
 	{
@@ -60,7 +63,7 @@ public class BookingServiceTests : IAsyncLifetime
 	public Task DisposeAsync() => Task.CompletedTask;
 
 	/// <summary>
-	/// Вспомогательный метод для создания тестового события через сервис.
+	/// Вспомогательный метод: создаёт тестовое мероприятие через сервис.
 	/// </summary>
 	private async Task<Guid> CreateTestEventAsync(int totalSeats = 10)
 	{
@@ -88,7 +91,7 @@ public class BookingServiceTests : IAsyncLifetime
 
 		// Assert
 		Assert.NotNull(result);
-		Assert.Equal(BookingStatus.Pending, result.Status); // Сравниваем Enum с Enum
+		Assert.Equal(BookingStatus.Pending, result.Status);
 		Assert.Equal(eventId, result.EventId);
 		Assert.Null(result.ProcessedAt);
 	}
@@ -127,7 +130,7 @@ public class BookingServiceTests : IAsyncLifetime
 		var result = await _bookingService.GetBookingByIdAsync(booking.Id);
 
 		// Assert
-		Assert.Equal(BookingStatus.Confirmed, result.Status); // Сравниваем Enum с Enum
+		Assert.Equal(BookingStatus.Confirmed, result.Status);
 		Assert.NotNull(result.ProcessedAt);
 	}
 
@@ -150,7 +153,7 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync();
-		await _eventService.Delete(eventId); // Удаляем событие
+		await _eventService.Delete(eventId);
 
 		// Act & Assert
 		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.CreateBookingAsync(eventId));
@@ -168,7 +171,7 @@ public class BookingServiceTests : IAsyncLifetime
 
 	#endregion
 
-	#region Тесты мест и цепочки Reject (по замечанию ревьюера)
+	#region Тесты мест и цепочки Reject
 
 	[Fact]
 	public async Task CreateBooking_ShouldDecrementAvailableSeats()
@@ -210,16 +213,16 @@ public class BookingServiceTests : IAsyncLifetime
 	[Fact]
 	public async Task Reject_Chain_ShouldReleaseSeatsAndAllowRebooking()
 	{
-		// Arrange: Создаем событие ровно на 1 место
+		// Arrange: событие на 1 место
 		var eventId = await CreateTestEventAsync(totalSeats: 1);
 
-		// Act 1: Забираем единственное место (используем старый сервис)
+		// Act 1: Забираем единственное место
 		var booking1 = await _bookingService.CreateBookingAsync(eventId);
 
-		// Act 2: Пытаемся забронировать еще раз (ожидаем 409 Conflict)
+		// Act 2: Пытаемся забронировать ещё раз (ожидаем исключение)
 		await Assert.ThrowsAsync<NoAvailableSeatsException>(() => _bookingService.CreateBookingAsync(eventId));
 
-		// Act 3: Имитируем отказ первой брони, возврат места и обновление БД
+		// Act 3: Отклоняем бронь, возвращаем место
 		using (var scope = _serviceProvider.CreateScope())
 		{
 			var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -227,12 +230,12 @@ public class BookingServiceTests : IAsyncLifetime
 			domainBooking.Reject();
 
 			var eventToUpdate = (await db.Events.FindAsync(eventId))!;
-			eventToUpdate.ReleaseSeats(); // Возвращает 1 место
+			eventToUpdate.ReleaseSeats();
 
-			await db.SaveChangesAsync(); // Сохраняем в БД
+			await db.SaveChangesAsync();
 		}
 
-		// Assert: Проверяем через чистый контекст, что в БД теперь 1 место
+		// Assert: Проверяем через чистый контекст
 		using (var checkScope = _serviceProvider.CreateScope())
 		{
 			var db = checkScope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -240,16 +243,12 @@ public class BookingServiceTests : IAsyncLifetime
 			Assert.Equal(1, eventAfterReject.AvailableSeats);
 		}
 
-		// Act 4: Пытаемся забронировать снова.
-		// Создаем новый scope, чтобы получить BookingService со СВЕЖИМ DbContext, без кэша
+		// Act 4: Пытаемся забронировать снова
 		using (var finalScope = _serviceProvider.CreateScope())
 		{
 			var freshBookingService = finalScope.ServiceProvider.GetRequiredService<IBookingService>();
-
-			// Act
 			var booking2 = await freshBookingService.CreateBookingAsync(eventId);
 
-			// Assert
 			Assert.NotNull(booking2);
 			Assert.NotEqual(booking1.Id, booking2.Id);
 		}

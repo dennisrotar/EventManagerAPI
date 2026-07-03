@@ -1,5 +1,5 @@
-﻿using EventManagerAPI.Models.DTOs.Booking;
-using EventManagerAPI.Interfaces;
+﻿using EventManager.Application.DTOs.Booking;
+using EventManager.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventManagerAPI.Controllers;

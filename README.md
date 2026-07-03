@@ -8,7 +8,7 @@
 - **ASP.NET Core Web API**
 - **База данных:** PostgreSQL (через Docker)
 - **ORM:** Entity Framework Core (с провайдером Npgsql и управлением через Migrations)
-- **Архитектура:** Паттерн Repository (инкапсуляция работы с `DbContext`)
+- **Архитектура:** Clean Architecture (4 слоя: Domain, Application, Infrastructure, Presentation)
 - **Фоновая обработка:** BackgroundService (отложенная обработка бронирований)
 - **Потокобезопасность:** `SemaphoreSlim` (защита от овербукинга на уровне сервиса)
 - **Документация:** Swagger (OpenAPI)
@@ -18,15 +18,32 @@
 
 ## Архитектура проекта
 
-Проект разработан с соблюдением принципов чистой архитектуры (Clean Architecture) и SOLID:
+Проект реализован по принципам **Clean Architecture** — зависимости направлены строго внутрь, от внешних слоёв к внутренним:
 
-- **Разделение ответственности (SRP):** Логика разделена на контроллеры (маршрутизация), сервисы (бизнес-логика), репозитории (доступ к данным) и контекст данных.
-- **Инверсия зависимостей (DIP):** Сервисы зависят от абстракций репозиториев (`IEventRepository`, `IBookingRepository`), а не от конкретной реализации `AppDbContext`.
+```
+Presentation → Application → Domain ← Infrastructure
+```
+
+### Слои и их ответственность
+
+| Слой | Проект | Зависимости | Ответственность |
+|------|--------|-------------|-----------------|
+| **Domain** | `EventManager.Domain` | Нет зависимостей | Доменные сущности (`Event`, `Booking`), исключения (`DomainException`, `NotFoundException`, `NoAvailableSeatsException`, `DomainValidationException`), перечисления (`BookingStatus`) |
+| **Application** | `EventManager.Application` | Domain | Бизнес-логика (`EventService`, `BookingService`), DTO, порт-интерфейсы репозиториев (`IEventRepository`, `IBookingRepository`), интерфейсы сервисов (`IEventService`, `IBookingService`), фоновый сервис (`BookingBackgroundService`), `DependencyInjection.cs` |
+| **Infrastructure** | `EventManager.Infrastructure` | Application, Domain | `AppDbContext`, EF Core конфигурации (`IEntityTypeConfiguration`), реализации репозиториев (`EventRepository`, `BookingRepository`), миграции, `DependencyInjection.cs` |
+| **Presentation** | `EventManager.Api` | Application, Infrastructure | Контроллеры, `Program.cs` (Composition Root), Swagger, `GlobalExceptionHandler` |
+
+### Ключевые принципы
+
+- **Разделение ответственности (SRP):** Каждый слой имеет чёткую зону ответственности. Контроллеры — только маршрутизация, сервисы — бизнес-логика, репозитории — доступ к данным.
+- **Инверсия зависимостей (DIP):** Порт-интерфейсы (`IEventRepository`, `IBookingRepository`) определены в **Application**, а их реализации — в **Infrastructure**. Сервисы зависят только от абстракций.
+- **Composition Root:** Все регистрации DI собраны в `Program.cs` через два extension-метода: `AddApplicationServices()` и `AddInfrastructureServices()`.
+- **Domain без зависимостей:** Слой Domain не ссылается ни на какие внешние пакеты — даже `StatusCodes` заменён на литеральные значения `int`.
 - **Жизненные циклы DI:**
-    - `AppDbContext` и Репозитории зарегистрированы как **Scoped** (один экземпляр на HTTP-запрос).
-    - Доменные сервисы зарегистрированы как **Scoped**.
-    - Фоновый сервис зарегистрирован как **Singleton** (использует `IServiceScopeFactory` для создания scoped-зависимостей внутри себя).
-- **Обработка ошибок:** Единообразный формат RFC 7807 (Problem Details) для 400, 404, 409 и 500 ошибок через `GlobalExceptionHandler`.
+    - `AppDbContext` и репозитории — **Scoped** (один экземпляр на HTTP-запрос).
+    - Доменные сервисы — **Scoped**.
+    - Фоновый сервис — **Singleton** (использует `IServiceScopeFactory` для создания scoped-зависимостей внутри себя).
+- **Обработка ошибок:** Единообразный формат RFC 7807 (Problem Details) для 400, 404, 409 и 500 ошибок через `GlobalExceptionHandler`. Доменные исключения наследуются от базового `DomainException` (без зависимости от ASP.NET).
 - **База данных:** Маппинг сущностей реализован через Fluent API (`IEntityTypeConfiguration`). Схема БД управляется миграциями и применяется автоматически при старте приложения.
 - **Observability (Логирование):** Внедрен `ILogger` в сервисы для трассировки жизненного цикла запросов и отладки.
 
@@ -34,25 +51,70 @@
 
 ```text
 EventManagerAPI/
-├── EventManager.Api/                    <-- Основной веб-API проект
-│   ├── Controllers/                     <-- Тонкий слой (маршрутизация, вызов сервисов)
-│   ├── Services/                        <-- Доменный слой (бизнес-логика, маппинг)
-│   ├── Repositories/                    <-- Слой доступа к данным (IEventRepository, IBookingRepository)
-│   ├── DataAccess/                      <-- Инфраструктурный слой (AppDbContext, Fluent API, Migrations)
-│   ├── Interfaces/                      <-- Абстракции сервисов
-│   ├── Models/                          <-- Доменные сущности и DTO
-│   │   └── DTOs/                        
-│   └── Exceptions/                      <-- Кастомные исключения и глобальный обработчик
-├── EventManagerAPI.Tests/               <-- Проект юнит-тестов (InMemory)
-│   ├── EventServiceTests.cs             
-│   ├── BookingServiceTests.cs           
-│   └── DtoValidationTests.cs            
-└── EventManagerAPI.IntegrationTests/    <-- Проект интеграционных тестов (Testcontainers + PostgreSQL)
-    ├── Fixtures/                        <-- Настройка жизненного цикла Docker-контейнера    
-    ├── IntegrationTestBase.cs           <-- Базовый класс с очисткой БД и применением миграций    
-    ├── MigrationTests.cs                <-- Тесты структуры БД (таблицы, FK, ограничения)    
-    ├── EventRepositoryTests.cs          <-- Полное покрытие CRUD и фильтров EventRepository    
-    └── BookingRepositoryTests.cs        <-- Полное покрытие методов BookingRepository
+├── EventManager.Domain/                  <-- Доменный слой (без внешних зависимостей)
+│   ├── Entities/                         <-- Сущности: Event, Booking
+│   │   ├── Event.cs
+│   │   ├── Booking.cs
+│   │   └── BookingStatus.cs
+│   └── Exceptions/                       <-- Доменные исключения
+│       ├── DomainException.cs            <--   Базовый класс (без ASP.NET-зависимостей)
+│       ├── NotFoundException.cs
+│       ├── NoAvailableSeatsException.cs
+│       └── DomainValidationException.cs
+│
+├── EventManager.Application/             <-- Слой бизнес-логики
+│   ├── DTOs/                             <-- Объекты передачи данных
+│   │   ├── Events/
+│   │   │   ├── CreateEventDto.cs
+│   │   │   ├── UpdateEventDto.cs
+│   │   │   ├── EventResponseDto.cs
+│   │   │   └── GetEventsQueryParams.cs
+│   │   └── Bookings/
+│   │       ├── CreateBookingDto.cs
+│   │       └── BookingResponseDto.cs
+│   ├── Interfaces/                       <-- Порт-интерфейсы
+│   │   ├── IEventRepository.cs
+│   │   ├── IBookingRepository.cs
+│   │   ├── IEventService.cs
+│   │   └── IBookingService.cs
+│   ├── Services/                         <-- Бизнес-логика
+│   │   ├── EventService.cs
+│   │   └── BookingService.cs
+│   ├── BookingBackgroundService.cs       <-- Фоновая обработка бронирований
+│   └── DependencyInjection.cs            <-- Extension-метод AddApplicationServices()
+│
+├── EventManager.Infrastructure/          <-- Инфраструктурный слой
+│   ├── Data/
+│   │   ├── AppDbContext.cs               <-- Контекст EF Core
+│   │   └── Configurations/               <-- Fluent API (IEntityTypeConfiguration)
+│   │       ├── EventConfiguration.cs
+│   │       └── BookingConfiguration.cs
+│   ├── Repositories/                     <-- Реализации порт-интерфейсов
+│   │   ├── EventRepository.cs
+│   │   └── BookingRepository.cs
+│   ├── Migrations/                       <-- EF Core миграции
+│   └── DependencyInjection.cs            <-- Extension-метод AddInfrastructureServices()
+│
+├── EventManager.Api/                     <-- Presentation-слой
+│   ├── Controllers/                      <-- Тонкие контроллеры (маршрутизация)
+│   │   ├── EventsController.cs
+│   │   └── BookingsController.cs
+│   ├── GlobalExceptionHandler.cs         <-- Глобальный обработчик ошибок (RFC 7807)
+│   ├── Program.cs                        <-- Composition Root
+│   ├── appsettings.json
+│   └── EventManagerAPI.csproj
+│
+├── EventManagerAPI.Tests/                <-- Юнит-тесты (InMemory)
+│   ├── EventServiceTests.cs
+│   ├── BookingServiceTests.cs
+│   └── DtoValidationTests.cs
+│
+└── EventManagerAPI.IntegrationTests/     <-- Интеграционные тесты (Testcontainers + PostgreSQL)
+    ├── Fixtures/                         <-- Настройка жизненного цикла Docker-контейнера
+    ├── IntegrationTestBase.cs            <-- Базовый класс с очисткой БД и применением миграций
+    ├── MigrationTests.cs                 <-- Тесты структуры БД (таблицы, FK, ограничения)
+    ├── EventRepositoryTests.cs           <-- Полное покрытие CRUD и фильтров EventRepository
+    └── BookingRepositoryTests.cs         <-- Полное покрытие методов BookingRepository
 ```
 
 ## Подготовка и запуск проекта
@@ -65,7 +127,6 @@ EventManagerAPI/
 
 В корне проекта находится файл `docker-compose.yml` для локальной базы данных. Откройте терминал в корне проекта и выполните команду:
 
-
 ```bash
 docker compose up -d
 ```
@@ -74,50 +135,41 @@ docker compose up -d
 
 Строка подключения к PostgreSQL находится в `EventManager.Api/appsettings.json`.
 
-
 ```json
 {
-
-	"ConnectionStrings": {
-		"DefaultConnection": "Host=localhost;Port=5432;Database=eventapi;Username=postgres;Password=postgres"
-	}
+        "ConnectionStrings": {
+                "DefaultConnection": "Host=localhost;Port=5432;Database=eventapi;Username=postgres;Password=postgres"
+        }
 }
 ```
 
-
 ### 4. Управление схемой БД (Миграции)
 
-Начиная с 6-го спринта, схема базы данных управляется **миграциями EF Core**, а не `EnsureCreated()`.
+Схема базы данных управляется **миграциями EF Core**. Миграции находятся в проекте `EventManager.Infrastructure`.
 
 В файле `Program.cs` перед стартом API вызывается метод `Migrate()`:
 
-
-```C#
+```csharp
 using (var scope = app.Services.CreateScope())
 {
-	var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-	
-	db.Database.Migrate(); // Применяет все неактивные миграции при запуске
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Database.Migrate(); // Применяет все неактивные миграции при запуске
 }
 ```
 
 **Что это значит:** Приложение при запуске проверяет таблицу истории миграций в PostgreSQL и накатывает все недостающие изменения (создание таблиц, внешних ключей и т.д.). Это безопасный способ обновления схемы БД в продакшене.
+
 #### Как создать новую миграцию (если изменили модели):
 
 Если вы изменили доменную модель или `IEntityTypeConfiguration`, сгенерируйте новую миграцию с помощью CLI (находясь в корне решения):
 
-
 ```bash
 # Установка инструмента (если еще не установлено)
-
 dotnet new tool-manifest
-
 dotnet tool install dotnet-ef
-  
 
-# Генерация миграции
-
-dotnet ef migrations add <Название_миграции> --project EventManager.Api/EventManagerAPI.csproj
+# Генерация миграции (миграции создаются в Infrastructure-проекте)
+dotnet ef migrations add <Название_миграции> --project EventManager.Infrastructure --startup-project EventManager.Api
 ```
 
 ### 5. Сборка и запуск
@@ -132,7 +184,7 @@ dotnet build
 3. Запустите API:
 
 ```bash
-dotnet run --project EventManager.Api/EventManagerAPI.csproj
+dotnet run --project EventManager.Api
 ```
 
 4. Откройте Swagger UI по адресу из логов консоли (например `http://localhost:5000/swagger`).
@@ -141,7 +193,6 @@ dotnet run --project EventManager.Api/EventManagerAPI.csproj
 ## Запуск тестов
 
 Для запуска всех тестов (юнит и интеграционных) выполните команду из корня решения:
-
 
 ```bash
 dotnet test
@@ -190,13 +241,13 @@ dotnet test
 
 ```json
 {
-	"id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-	"title": "Тренировка по баскету",
-	"description": "Опоздаешь-отожмёшься!",
-	"startAt": "2024-01-15T20:00:00Z",
-	"endAt": "2024-01-15T23:00:00Z",
-	"totalSeats": 50,
-	"availableSeats": 42
+        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "title": "Тренировка по баскету",
+        "description": "Опоздаешь-отожмёшься!",
+        "startAt": "2024-01-15T20:00:00Z",
+        "endAt": "2024-01-15T23:00:00Z",
+        "totalSeats": 50,
+        "availableSeats": 42
 }
 ```
 
@@ -230,19 +281,18 @@ dotnet test
 
 Возникает при невалидных данных в теле запроса или некорректных параметрах пагинации.
 
-
 ```json
 {
-	  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
-	  "title": "One or more validation errors occurred.",
-	  "status": 400,
-	  "instance": "/events",
-	  "traceId": "00-873ba4af2ca7f9c6f861fb3cdb5c6669-0c1015a54df57858-00",
-	  "errors": {
-	    "Title": [
-	      "Название мероприятия не может быть пустым!"
-	    ]
-	}
+          "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+          "title": "One or more validation errors occurred.",
+          "status": 400,
+          "instance": "/events",
+          "traceId": "00-873ba4af2ca7f9c6f861fb3cdb5c6669-0c1015a54df57858-00",
+          "errors": {
+            "Title": [
+              "Название мероприятия не может быть пустым!"
+            ]
+        }
 }
 ```
 ### Пример 2: Ресурс не найден (404 Not Found)
@@ -252,12 +302,12 @@ dotnet test
 ```json
 
 {
-	"type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
-	"title": "Not Found",
-	"status": 404,
-	"detail": "Мероприятие с ID 00000000-0000-0000-0000-000000000000 не найдено",
-	"instance": "/events/00000000-0000-0000-0000-000000000000",
-	"traceId": "00-2f74d953e90ca3678214d2e930e48b51-fd9e4692eb25c93b-00"
+        "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+        "title": "Not Found",
+        "status": 404,
+        "detail": "Мероприятие с ID 00000000-0000-0000-0000-000000000000 не найдено",
+        "instance": "/events/00000000-0000-0000-0000-000000000000",
+        "traceId": "00-2f74d953e90ca3678214d2e930e48b51-fd9e4692eb25c93b-00"
 }
 ```
 

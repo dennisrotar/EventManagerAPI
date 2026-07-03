@@ -2,8 +2,9 @@
   <Folder Name="/EventManager.Api/">
     <Project Path="EventManager.Api/EventManagerAPI.csproj" />
   </Folder>
-  <Project Path="EventManagerAPI.IntegrationTests/EventManagerAPI.IntegrationTests.csproj">
-    <Build Solution="Debug|*" Project="false" />
-  </Project>
+  <Project Path="EventManager.Application/EventManager.Application.csproj" />
+  <Project Path="EventManager.Domain/EventManager.Domain.csproj" />
+  <Project Path="EventManager.Infrastructure/EventManager.Infrastructure.csproj" />
+  <Project Path="EventManagerAPI.IntegrationTests/EventManagerAPI.IntegrationTests.csproj" />
   <Project Path="EventManagerAPI.Tests/EventManagerAPI.Tests.csproj" />
 </Solution>

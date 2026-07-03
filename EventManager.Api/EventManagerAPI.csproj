@@ -8,15 +8,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-<ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
-  </ItemGroup>
+	<!-- EF Core Design нужен для dotnet ef команд (startup-project = Api) -->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Application — для use cases, DTO, интерфейсов (транзитивно подтянет Domain) -->
+		<ProjectReference Include="..\EventManager.Application\EventManager.Application.csproj" />
+		<!-- Infrastructure — для composition root: подключение реализаций портов через DI -->
+		<ProjectReference Include="..\EventManager.Infrastructure\EventManager.Infrastructure.csproj" />
+	</ItemGroup>
 
 </Project>
