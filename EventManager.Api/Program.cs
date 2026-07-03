@@ -1,7 +1,8 @@
 using EventManager.Application;
 using EventManager.Infrastructure;
 using EventManager.Infrastructure.DataAccess;
-using EventManagerAPI.Exceptions;using Microsoft.AspNetCore.Mvc;
+using EventManagerAPI.Exceptions;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 
