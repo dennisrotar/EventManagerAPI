@@ -184,7 +184,7 @@ dotnet build
 3. Запустите API:
 
 ```bash
-dotnet run --project EventManager.Api/EventManagerAPI.csproj
+dotnet run --project EventManager.Api
 ```
 
 4. Откройте Swagger UI по адресу из логов консоли (например `http://localhost:5000/swagger`).
