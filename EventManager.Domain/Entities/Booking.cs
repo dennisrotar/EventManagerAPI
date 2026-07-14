@@ -1,3 +1,5 @@
+using EventManager.Domain.Exceptions;
+
 namespace EventManager.Domain.Entities;
 
 /// <summary>
@@ -10,6 +12,7 @@ public class Booking
 {
 	public Guid Id { get; private set; }
 	public Guid EventId { get; private set; }
+	public Guid UserId { get; private set; }
 	public BookingStatus Status { get; private set; }
 	public DateTime CreatedAt { get; private set; }
 	public DateTime? ProcessedAt { get; private set; }
@@ -27,12 +30,13 @@ public class Booking
 	/// <summary>
 	/// Фабричный метод для создания брони со статусом Pending.
 	/// </summary>
-	public static Booking CreatePending(Guid eventId)
+	public static Booking CreatePending(Guid eventId, Guid userId)
 	{
 		return new Booking
 		{
 			Id = Guid.NewGuid(),
 			EventId = eventId,
+			UserId = userId,
 			Status = BookingStatus.Pending,
 			CreatedAt = DateTime.UtcNow
 		};
@@ -52,7 +56,10 @@ public class Booking
 	/// </summary>
 	public void Reject()
 	{
-		Status = BookingStatus.Rejected;
+		if (Status == BookingStatus.Cancelled)
+			throw new DomainValidationException("Бронирование уже отменено.");
+
+		Status = BookingStatus.Cancelled;
 		ProcessedAt = DateTime.UtcNow;
 	}
 }
