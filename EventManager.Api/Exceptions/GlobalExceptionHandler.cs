@@ -1,4 +1,4 @@
-﻿using EventManager.Domain.Exceptions;           // ← ИЗМЕНЕНО: было EventManagerAPI.Exceptions
+﻿using EventManager.Domain.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -33,15 +33,15 @@ public class GlobalExceptionHandler : IExceptionHandler
 		ProblemDetails problemDetails;
 
 		// Проверяем: является ли ошибка доменной (наследником DomainException)
-		if (exception is DomainException domainException)        // ← ИЗМЕНЕНО: было BaseApiException
+		if (exception is DomainException domainException)
 		{
 			// Берём данные из самого исключения (StatusCode — int, ErrorTitle, ErrorType)
 			problemDetails = new ProblemDetails
 			{
-				Status = domainException.StatusCode,             // ← ИЗМЕНЕНО: без изменений (уже int)
-				Title = domainException.ErrorTitle,              // ← ИЗМЕНЕНО: было .Title
+				Status = domainException.StatusCode,
+				Title = domainException.ErrorTitle,
 				Detail = domainException.Message,
-				Type = domainException.ErrorType,                // ← ИЗМЕНЕНО: было .Type
+				Type = domainException.ErrorType,
 				Instance = httpContext.Request.Path
 			};
 		}
