@@ -15,7 +15,6 @@ public class BookingService : IBookingService
 {
 	private readonly IBookingRepository _bookingRepo;
 	private readonly ILogger<BookingService> _logger;
-	private readonly IUserRepository _userRepo;
 
 	// Лимит активных броней на одного пользователя.
 	private const int MaxActiveBookings = 10;
@@ -29,11 +28,10 @@ public class BookingService : IBookingService
 	/// <param name="bookingRepo">Порт репозитория бронирований (реализация в Infrastructure).</param>
 	/// <param name="logger">Логгер.</param>
 	/// <param name="userRepor">Репозитори пользователя.</param>
-	public BookingService(IBookingRepository bookingRepo, ILogger<BookingService> logger, IUserRepository userRepo)
+	public BookingService(IBookingRepository bookingRepo, ILogger<BookingService> logger)
 	{
 		_bookingRepo = bookingRepo ?? throw new ArgumentNullException(nameof(bookingRepo));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
-		_userRepo = userRepo ?? throw new ArgumentNullException(nameof(userRepo));
 	}
 
 	public async Task<BookingResponseDto> CreateBookingAsync(Guid eventId, Guid userId)
@@ -51,7 +49,7 @@ public class BookingService : IBookingService
 				throw new NoAvailableSeatsException("Свободных мест на это мероприятие нет.");
 
 			// 3. Проверить лимит активных броней пользователя
-			var activeBookingsCount = await _userRepo.CountActiveBookingsByUserIdAsync(userId, CancellationToken.None);
+			var activeBookingsCount = await _bookingRepo.CountActiveByUserIdAsync(userId, CancellationToken.None);
 			if (activeBookingsCount >= MaxActiveBookings)
 				throw new ActiveBookingLimitExceededException(MaxActiveBookings);
 
@@ -104,7 +102,6 @@ public class BookingService : IBookingService
 	{
 		Id = b.Id,
 		EventId = b.EventId,
-		// UserId = b.UserId,
 		Status = b.Status,
 		CreatedAt = b.CreatedAt,
 		ProcessedAt = b.ProcessedAt

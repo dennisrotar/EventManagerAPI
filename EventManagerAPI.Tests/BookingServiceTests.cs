@@ -85,9 +85,10 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync();
+		var userId = Guid.NewGuid();
 
 		// Act
-		var result = await _bookingService.CreateBookingAsync(eventId);
+		var result = await _bookingService.CreateBookingAsync(eventId, userId);
 
 		// Assert
 		Assert.NotNull(result);
@@ -101,10 +102,11 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync(totalSeats: 2);
+		var userId = Guid.NewGuid();
 
 		// Act
-		var b1 = await _bookingService.CreateBookingAsync(eventId);
-		var b2 = await _bookingService.CreateBookingAsync(eventId);
+		var b1 = await _bookingService.CreateBookingAsync(eventId, userId);
+		var b2 = await _bookingService.CreateBookingAsync(eventId, userId);
 
 		// Assert
 		Assert.NotEqual(b1.Id, b2.Id);
@@ -115,7 +117,9 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync();
-		var booking = await _bookingService.CreateBookingAsync(eventId);
+		var userId = Guid.NewGuid();
+
+		var booking = await _bookingService.CreateBookingAsync(eventId, userId);
 
 		// Имитируем работу фонового сервиса напрямую через БД
 		using (var scope = _serviceProvider.CreateScope())
@@ -143,9 +147,10 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var fakeEventId = Guid.NewGuid();
+		var userId = Guid.NewGuid();
 
 		// Act & Assert
-		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.CreateBookingAsync(fakeEventId));
+		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.CreateBookingAsync(fakeEventId, userId));
 	}
 
 	[Fact]
@@ -153,10 +158,11 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync();
+		var userId = Guid.NewGuid();
 		await _eventService.Delete(eventId);
 
 		// Act & Assert
-		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.CreateBookingAsync(eventId));
+		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.CreateBookingAsync(eventId, userId));
 	}
 
 	[Fact]
@@ -178,6 +184,7 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync(totalSeats: 5);
+		var userId = Guid.NewGuid();
 
 		int seatsBefore, seatsAfter;
 		using (var scope = _serviceProvider.CreateScope())
@@ -187,7 +194,7 @@ public class BookingServiceTests : IAsyncLifetime
 		}
 
 		// Act
-		await _bookingService.CreateBookingAsync(eventId);
+		await _bookingService.CreateBookingAsync(eventId, userId);
 
 		using (var scope = _serviceProvider.CreateScope())
 		{
@@ -204,10 +211,11 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync(totalSeats: 1);
-		await _bookingService.CreateBookingAsync(eventId); // Забираем единственное место
+		var userId = Guid.NewGuid();
+		await _bookingService.CreateBookingAsync(eventId, userId); // Забираем единственное место
 
 		// Act & Assert
-		await Assert.ThrowsAsync<NoAvailableSeatsException>(() => _bookingService.CreateBookingAsync(eventId));
+		await Assert.ThrowsAsync<NoAvailableSeatsException>(() => _bookingService.CreateBookingAsync(eventId, userId));
 	}
 
 	[Fact]
@@ -215,19 +223,20 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange: событие на 1 место
 		var eventId = await CreateTestEventAsync(totalSeats: 1);
+		var userId = Guid.NewGuid();
 
 		// Act 1: Забираем единственное место
-		var booking1 = await _bookingService.CreateBookingAsync(eventId);
+		var booking1 = await _bookingService.CreateBookingAsync(eventId, userId);
 
 		// Act 2: Пытаемся забронировать ещё раз (ожидаем исключение)
-		await Assert.ThrowsAsync<NoAvailableSeatsException>(() => _bookingService.CreateBookingAsync(eventId));
+		await Assert.ThrowsAsync<NoAvailableSeatsException>(() => _bookingService.CreateBookingAsync(eventId, userId));
 
 		// Act 3: Отклоняем бронь, возвращаем место
 		using (var scope = _serviceProvider.CreateScope())
 		{
 			var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 			var domainBooking = (await db.Bookings.FindAsync(booking1.Id))!;
-			domainBooking.Reject();
+			domainBooking.Cancel();
 
 			var eventToUpdate = (await db.Events.FindAsync(eventId))!;
 			eventToUpdate.ReleaseSeats();
@@ -247,7 +256,7 @@ public class BookingServiceTests : IAsyncLifetime
 		using (var finalScope = _serviceProvider.CreateScope())
 		{
 			var freshBookingService = finalScope.ServiceProvider.GetRequiredService<IBookingService>();
-			var booking2 = await freshBookingService.CreateBookingAsync(eventId);
+			var booking2 = await freshBookingService.CreateBookingAsync(eventId, userId);
 
 			Assert.NotNull(booking2);
 			Assert.NotEqual(booking1.Id, booking2.Id);

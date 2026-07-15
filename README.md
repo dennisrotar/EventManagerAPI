@@ -84,7 +84,7 @@ EventManagerAPI/
 │   └── DependencyInjection.cs            <-- Extension-метод AddApplicationServices()
 │
 ├── EventManager.Infrastructure/          <-- Инфраструктурный слой
-│   ├── Data/
+│   ├── DataAccess/
 │   │   ├── AppDbContext.cs               <-- Контекст EF Core
 │   │   └── Configurations/               <-- Fluent API (IEntityTypeConfiguration)
 │   │       ├── EventConfiguration.cs

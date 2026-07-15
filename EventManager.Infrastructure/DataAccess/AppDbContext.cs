@@ -21,6 +21,9 @@ public class AppDbContext : DbContext
 	/// <summary>DbSet бронирований.</summary>
 	public DbSet<Booking> Bookings => Set<Booking>();
 
+	/// <summary>DbSet пользователей.</summary>
+	public DbSet<User> Users => Set<User>();
+
 	/// <summary>
 	/// Конфигурация модели: автоматически подхватывает все IEntityTypeConfiguration
 	/// из текущей сборки (Infrastructure).

@@ -85,7 +85,7 @@ public class BookingBackgroundService : BackgroundService
 			if (eventEntity == null)
 			{
 				// Мероприятие удалено — отклоняем бронь
-				booking.Reject();
+				booking.Cancel();
 				await bookingRepo.SaveChangesAsync(stoppingToken);
 				_logger.LogWarning("Событие удалено. Бронь {Id} отклонена", bookingId);
 				return;

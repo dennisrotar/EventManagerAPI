@@ -18,7 +18,7 @@ public class BookingConfiguration : IEntityTypeConfiguration<Booking>
 		// Id генерируется в коде (фабричный метод), БД не должна подставлять свои значения
 		builder.Property(b => b.Id).ValueGeneratedNever();
 
-		// Сохраняем Enum в БД как строку ("Pending", "Confirmed", "Rejected")
+		// Сохраняем Enum в БД как строку ("Pending", "Confirmed", "Cancelled")
 		builder.Property(b => b.Status)
 			   .HasConversion<string>()
 			   .HasMaxLength(50)
@@ -26,7 +26,12 @@ public class BookingConfiguration : IEntityTypeConfiguration<Booking>
 
 		// Связь: Booking → Event (многие к одному)
 		builder.HasOne(b => b.Event)
-			   .WithMany(e => e.Bookings)
-			   .HasForeignKey(b => b.EventId);
+				.WithMany(e => e.Bookings)
+				.HasForeignKey(b => b.EventId);
+
+		builder.HasOne<User>()
+				.WithMany()
+				.HasForeignKey(b => b.UserId)
+				.OnDelete(DeleteBehavior.Cascade);
 	}
 }

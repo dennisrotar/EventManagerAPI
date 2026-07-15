@@ -55,6 +55,7 @@ public class BookingServiceConcurrencyTests : IAsyncLifetime
 	public async Task ConcurrentBookings_ShouldPreventOverbooking()
 	{
 		var eventId = await CreateTestEvent(5);
+		var userId = Guid.NewGuid();
 		const int concurrentTasks = 20;
 		var exceptions = new List<Exception>();
 
@@ -62,7 +63,7 @@ public class BookingServiceConcurrencyTests : IAsyncLifetime
 		{
 			using var scope = _serviceProvider.CreateScope();
 			var bookingService = scope.ServiceProvider.GetRequiredService<IBookingService>();
-			try { await bookingService.CreateBookingAsync(eventId); }
+			try { await bookingService.CreateBookingAsync(eventId, userId); }
 			catch (Exception ex) { lock (exceptions) { exceptions.Add(ex); } }
 		}));
 

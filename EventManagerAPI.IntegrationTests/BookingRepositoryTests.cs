@@ -29,7 +29,7 @@ public class BookingRepositoryTests : IntegrationTestBase
 	{
 		// Arrange
 		var eventEntity = await CreateTestEventInDb();
-		var booking = Booking.CreatePending(eventEntity.Id);
+		var booking = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
 
 		// Act
 		BookingRepository.Add(booking);
@@ -47,7 +47,7 @@ public class BookingRepositoryTests : IntegrationTestBase
 	{
 		// Arrange
 		var eventEntity = await CreateTestEventInDb();
-		var booking = Booking.CreatePending(eventEntity.Id);
+		var booking = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
 		BookingRepository.Add(booking);
 		await BookingRepository.SaveChangesAsync(CancellationToken.None);
 
@@ -64,7 +64,7 @@ public class BookingRepositoryTests : IntegrationTestBase
 	{
 		// Arrange
 		var eventEntity = await CreateTestEventInDb();
-		var booking = Booking.CreatePending(eventEntity.Id);
+		var booking = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
 		BookingRepository.Add(booking);
 		await BookingRepository.SaveChangesAsync(CancellationToken.None);
 
@@ -102,9 +102,9 @@ public class BookingRepositoryTests : IntegrationTestBase
 		// Arrange
 		var eventEntity = await CreateTestEventInDb();
 
-		var booking1 = Booking.CreatePending(eventEntity.Id);
-		var booking2 = Booking.CreatePending(eventEntity.Id);
-		var booking3 = Booking.CreatePending(eventEntity.Id);
+		var booking1 = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
+		var booking2 = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
+		var booking3 = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
 
 		booking2.Confirm();
 
@@ -127,7 +127,7 @@ public class BookingRepositoryTests : IntegrationTestBase
 	public async Task AddBooking_ToNonExistentEvent_ShouldThrowDbUpdateException()
 	{
 		// Arrange
-		var booking = Booking.CreatePending(Guid.NewGuid());
+		var booking = Booking.CreatePending(Guid.NewGuid(), Guid.NewGuid());
 		BookingRepository.Add(booking);
 
 		// Act & Assert

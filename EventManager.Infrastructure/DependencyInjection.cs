@@ -4,6 +4,7 @@ using EventManager.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using EventManager.Infrastructure.Security;
 
 namespace EventManager.Infrastructure;
 
@@ -32,6 +33,13 @@ public static class DependencyInjection
 		// Регистрация реализаций портов (адаптеров) — Scoped
 		services.AddScoped<IEventRepository, EventRepository>();
 		services.AddScoped<IBookingRepository, BookingRepository>();
+		services.AddScoped<IUserRepository, UserRepository>();
+
+		// Регистрация сервисов безопасности (хеширование паролей и генерация JWT)
+		// PasswordHasher не имеет состояния, поэтому Singleton (или Scoped)
+		services.AddSingleton<IPasswordHasher, PasswordHasher>();
+		// JwtTokenService читает конфигурацию, регистрируем как Scoped
+		services.AddScoped<ITokenService, JwtTokenService>();
 
 		return services;
 	}
