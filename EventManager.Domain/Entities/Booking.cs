@@ -54,7 +54,7 @@ public class Booking
 	/// <summary>
 	/// Отклоняет бронь и фиксирует время обработки.
 	/// </summary>
-	public void Reject()
+	public void Cancel()
 	{
 		if (Status == BookingStatus.Cancelled)
 			throw new DomainValidationException("Бронирование уже отменено.");

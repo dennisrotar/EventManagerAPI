@@ -1,4 +1,5 @@
 using EventManager.Application.DTOs.Booking;
+using EventManager.Domain.Entities;
 
 namespace EventManager.Application.Interfaces;
 
@@ -18,7 +19,12 @@ public interface IBookingService
 	/// <exception cref="Domain.Exceptions.NoAvailableSeatsException">
 	/// Нет свободных мест.
 	/// </exception>
-	Task<BookingResponseDto> CreateBookingAsync(Guid eventId);
+	Task<BookingResponseDto> CreateBookingAsync(Guid eventId, Guid userId);
+
+	/// <summary>
+	/// Отменить бронь.
+	/// </summary>
+	Task CancelBookingAsync(Guid bookingId, Guid requestingUserId, Role requestingUserRole);
 
 	/// <summary>
 	/// Получить информацию о брони по ID.
