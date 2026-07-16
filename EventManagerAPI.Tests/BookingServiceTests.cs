@@ -1,9 +1,8 @@
-﻿using EventManager.Application.DTOs;                    
-using EventManager.Application.DTOs.Booking;            
-using EventManager.Application.Interfaces;            
-using EventManager.Application.Services;                
-using EventManager.Domain.Entities;                     
-using EventManager.Domain.Exceptions;                   
+﻿using EventManager.Application.DTOs;
+using EventManager.Application.Interfaces;
+using EventManager.Application.Services;
+using EventManager.Domain.Entities;
+using EventManager.Domain.Exceptions;
 using EventManager.Infrastructure.DataAccess;
 using EventManager.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -65,12 +64,12 @@ public class BookingServiceTests : IAsyncLifetime
 	/// <summary>
 	/// Вспомогательный метод: создаёт тестовое мероприятие через сервис.
 	/// </summary>
-	private async Task<Guid> CreateTestEventAsync(int totalSeats = 10)
+	private async Task<Guid> CreateTestEventAsync(int totalSeats = 10, DateTime? startAt = null)
 	{
 		var dto = new CreateEventRequestDto
 		{
 			Title = "Test Event",
-			StartAt = DateTime.UtcNow.AddDays(1),
+			StartAt = startAt ?? DateTime.UtcNow.AddDays(1),
 			EndAt = DateTime.UtcNow.AddDays(2),
 			TotalSeats = totalSeats
 		};
@@ -261,6 +260,112 @@ public class BookingServiceTests : IAsyncLifetime
 			Assert.NotNull(booking2);
 			Assert.NotEqual(booking1.Id, booking2.Id);
 		}
+	}
+
+	#endregion
+
+	#region Тесты 8-го спринта (Бизнес-правила и Авторизация)
+
+	[Fact]
+	public async Task CreateBooking_ForPastEvent_ShouldThrowPastEventBookingException()
+	{
+		// Arrange
+		// Создаем событие, которое уже началось (вчера)
+		var eventId = await CreateTestEventAsync(startAt: DateTime.UtcNow.AddDays(-1));
+		var userId = Guid.NewGuid();
+
+		// Act & Assert
+		await Assert.ThrowsAsync<PastEventBookingException>(() => _bookingService.CreateBookingAsync(eventId, userId));
+	}
+
+	[Fact]
+	public async Task CreateBooking_WhenLimitExceeded_ShouldThrowActiveBookingLimitExceededException()
+	{
+		// Arrange
+		// Создаем событие с большим количеством мест, чтобы упереться в лимит брони (10), а не в места
+		var eventId = await CreateTestEventAsync(totalSeats: 20);
+		var userId = Guid.NewGuid();
+
+		// Создаем 10 активных броней (лимит)
+		for (int i = 0; i < 10; i++)
+		{
+			await _bookingService.CreateBookingAsync(eventId, userId);
+		}
+
+		// Act & Assert
+		// 11-я броня должна вызвать исключение
+		await Assert.ThrowsAsync<ActiveBookingLimitExceededException>(() => _bookingService.CreateBookingAsync(eventId, userId));
+	}
+
+	[Fact]
+	public async Task CreateBooking_LimitsOfDifferentUsers_ShouldNotAffectEachOther()
+	{
+		// Arrange
+		var eventId = await CreateTestEventAsync(totalSeats: 20);
+		var user1Id = Guid.NewGuid();
+		var user2Id = Guid.NewGuid();
+
+		// User 1 упирается в лимит
+		for (int i = 0; i < 10; i++)
+		{
+			await _bookingService.CreateBookingAsync(eventId, user1Id);
+		}
+
+		// Act
+		// User 2 должен спокойно забронировать (у него 0 броней)
+		var booking = await _bookingService.CreateBookingAsync(eventId, user2Id);
+
+		// Assert
+		Assert.NotNull(booking);
+		Assert.Equal(BookingStatus.Pending, booking.Status);
+	}
+
+	[Fact]
+	public async Task CancelBooking_ForOwnBooking_AsUser_ShouldCancelSuccessfully()
+	{
+		// Arrange
+		var eventId = await CreateTestEventAsync();
+		var userId = Guid.NewGuid();
+		var booking = await _bookingService.CreateBookingAsync(eventId, userId);
+
+		// Act
+		await _bookingService.CancelBookingAsync(booking.Id, userId, Role.User);
+
+		// Assert
+		var cancelledBooking = await _bookingService.GetBookingByIdAsync(booking.Id);
+		Assert.Equal(BookingStatus.Cancelled, cancelledBooking.Status);
+	}
+
+	[Fact]
+	public async Task CancelBooking_ForForeignBooking_AsUser_ShouldThrowForbiddenException()
+	{
+		// Arrange
+		var eventId = await CreateTestEventAsync();
+		var ownerId = Guid.NewGuid();
+		var requestingUserId = Guid.NewGuid(); // Другой пользователь
+
+		var booking = await _bookingService.CreateBookingAsync(eventId, ownerId);
+
+		// Act & Assert
+		await Assert.ThrowsAsync<ForbiddenException>(() => _bookingService.CancelBookingAsync(booking.Id, requestingUserId, Role.User));
+	}
+
+	[Fact]
+	public async Task CancelBooking_ForForeignBooking_AsAdmin_ShouldCancelSuccessfully()
+	{
+		// Arrange
+		var eventId = await CreateTestEventAsync();
+		var ownerId = Guid.NewGuid();
+		var adminId = Guid.NewGuid(); // Админ
+
+		var booking = await _bookingService.CreateBookingAsync(eventId, ownerId);
+
+		// Act
+		await _bookingService.CancelBookingAsync(booking.Id, adminId, Role.Admin);
+
+		// Assert
+		var cancelledBooking = await _bookingService.GetBookingByIdAsync(booking.Id);
+		Assert.Equal(BookingStatus.Cancelled, cancelledBooking.Status);
 	}
 
 	#endregion

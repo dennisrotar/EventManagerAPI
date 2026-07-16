@@ -16,6 +16,7 @@ public class IntegrationTestBase : IAsyncLifetime
 	protected AppDbContext DbContext = null!;
 	protected IEventRepository EventRepository = null!;
 	protected IBookingRepository BookingRepository = null!;
+	protected IUserRepository UserRepository = null!;
 
 	public IntegrationTestBase(PostgreSqlFixture fixture)
 	{
@@ -32,6 +33,7 @@ public class IntegrationTestBase : IAsyncLifetime
 
 		EventRepository = new EventRepository(DbContext);
 		BookingRepository = new BookingRepository(DbContext);
+		UserRepository = new UserRepository(DbContext);
 	}
 
 	public async Task DisposeAsync() => await DbContext.DisposeAsync();

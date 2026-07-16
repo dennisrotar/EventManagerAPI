@@ -1,7 +1,7 @@
-﻿using EventManager.Application.Interfaces;              
+﻿using EventManager.Application.Interfaces;
 using EventManager.Domain.Entities;
-using EventManager.Infrastructure.DataAccess;           
-using EventManager.Infrastructure.Repositories;         
+using EventManager.Infrastructure.DataAccess;
+using EventManager.Infrastructure.Repositories;
 using EventManagerAPI.IntegrationTests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -24,12 +24,22 @@ public class BookingRepositoryTests : IntegrationTestBase
 		return eventEntity;
 	}
 
+	// НОВЫЙ МЕТОД: Создает пользователя, чтобы избежать нарушения FK (FK_bookings_Users_UserId)
+	private async Task<User> CreateTestUserInDb()
+	{
+		var user = new User("testuser_" + Guid.NewGuid(), "hash", Role.User);
+		await UserRepository.AddAsync(user, CancellationToken.None);
+		await UserRepository.SaveChangesAsync(CancellationToken.None);
+		return user;
+	}
+
 	[Fact]
 	public async Task Add_ShouldPersistBookingToDatabase()
 	{
 		// Arrange
 		var eventEntity = await CreateTestEventInDb();
-		var booking = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
+		var user = await CreateTestUserInDb();
+		var booking = Booking.CreatePending(eventEntity.Id, user.Id); // Используем реальный ID
 
 		// Act
 		BookingRepository.Add(booking);
@@ -47,7 +57,8 @@ public class BookingRepositoryTests : IntegrationTestBase
 	{
 		// Arrange
 		var eventEntity = await CreateTestEventInDb();
-		var booking = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
+		var user = await CreateTestUserInDb();
+		var booking = Booking.CreatePending(eventEntity.Id, user.Id);
 		BookingRepository.Add(booking);
 		await BookingRepository.SaveChangesAsync(CancellationToken.None);
 
@@ -64,7 +75,8 @@ public class BookingRepositoryTests : IntegrationTestBase
 	{
 		// Arrange
 		var eventEntity = await CreateTestEventInDb();
-		var booking = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
+		var user = await CreateTestUserInDb();
+		var booking = Booking.CreatePending(eventEntity.Id, user.Id);
 		BookingRepository.Add(booking);
 		await BookingRepository.SaveChangesAsync(CancellationToken.None);
 
@@ -73,8 +85,6 @@ public class BookingRepositoryTests : IntegrationTestBase
 
 		// Assert
 		Assert.NotNull(trackedBooking);
-
-		// Доказываем, что сущность отслеживается EF Core
 		trackedBooking.Confirm();
 		await BookingRepository.SaveChangesAsync(CancellationToken.None);
 
@@ -101,10 +111,11 @@ public class BookingRepositoryTests : IntegrationTestBase
 	{
 		// Arrange
 		var eventEntity = await CreateTestEventInDb();
+		var user = await CreateTestUserInDb();
 
-		var booking1 = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
-		var booking2 = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
-		var booking3 = Booking.CreatePending(eventEntity.Id, Guid.NewGuid());
+		var booking1 = Booking.CreatePending(eventEntity.Id, user.Id);
+		var booking2 = Booking.CreatePending(eventEntity.Id, user.Id);
+		var booking3 = Booking.CreatePending(eventEntity.Id, user.Id);
 
 		booking2.Confirm();
 
@@ -127,7 +138,8 @@ public class BookingRepositoryTests : IntegrationTestBase
 	public async Task AddBooking_ToNonExistentEvent_ShouldThrowDbUpdateException()
 	{
 		// Arrange
-		var booking = Booking.CreatePending(Guid.NewGuid(), Guid.NewGuid());
+		var user = await CreateTestUserInDb(); // Пользователь существует
+		var booking = Booking.CreatePending(Guid.NewGuid(), user.Id); // Событие НЕ существует
 		BookingRepository.Add(booking);
 
 		// Act & Assert
