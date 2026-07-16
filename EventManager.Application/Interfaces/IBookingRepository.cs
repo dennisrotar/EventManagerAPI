@@ -25,4 +25,7 @@ public interface IBookingRepository
 
 	/// <summary>Сохранить все изменения в хранилище.</summary>
 	Task SaveChangesAsync(CancellationToken ct);
+
+	/// <summary>Подсчетать количество активных броней.</summary>
+	Task<int> CountActiveByUserIdAsync(Guid userId, CancellationToken ct);
 }

@@ -1,9 +1,8 @@
-﻿using EventManager.Application.DTOs;                    
-using EventManager.Application.DTOs.Booking;            
-using EventManager.Application.Interfaces;            
-using EventManager.Application.Services;                
-using EventManager.Domain.Entities;                     
-using EventManager.Domain.Exceptions;                   
+﻿using EventManager.Application.DTOs;
+using EventManager.Application.Interfaces;
+using EventManager.Application.Services;
+using EventManager.Domain.Entities;
+using EventManager.Domain.Exceptions;
 using EventManager.Infrastructure.DataAccess;
 using EventManager.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -65,12 +64,12 @@ public class BookingServiceTests : IAsyncLifetime
 	/// <summary>
 	/// Вспомогательный метод: создаёт тестовое мероприятие через сервис.
 	/// </summary>
-	private async Task<Guid> CreateTestEventAsync(int totalSeats = 10)
+	private async Task<Guid> CreateTestEventAsync(int totalSeats = 10, DateTime? startAt = null)
 	{
 		var dto = new CreateEventRequestDto
 		{
 			Title = "Test Event",
-			StartAt = DateTime.UtcNow.AddDays(1),
+			StartAt = startAt ?? DateTime.UtcNow.AddDays(1),
 			EndAt = DateTime.UtcNow.AddDays(2),
 			TotalSeats = totalSeats
 		};
@@ -85,9 +84,10 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync();
+		var userId = Guid.NewGuid();
 
 		// Act
-		var result = await _bookingService.CreateBookingAsync(eventId);
+		var result = await _bookingService.CreateBookingAsync(eventId, userId);
 
 		// Assert
 		Assert.NotNull(result);
@@ -101,10 +101,11 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync(totalSeats: 2);
+		var userId = Guid.NewGuid();
 
 		// Act
-		var b1 = await _bookingService.CreateBookingAsync(eventId);
-		var b2 = await _bookingService.CreateBookingAsync(eventId);
+		var b1 = await _bookingService.CreateBookingAsync(eventId, userId);
+		var b2 = await _bookingService.CreateBookingAsync(eventId, userId);
 
 		// Assert
 		Assert.NotEqual(b1.Id, b2.Id);
@@ -115,7 +116,9 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync();
-		var booking = await _bookingService.CreateBookingAsync(eventId);
+		var userId = Guid.NewGuid();
+
+		var booking = await _bookingService.CreateBookingAsync(eventId, userId);
 
 		// Имитируем работу фонового сервиса напрямую через БД
 		using (var scope = _serviceProvider.CreateScope())
@@ -143,9 +146,10 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var fakeEventId = Guid.NewGuid();
+		var userId = Guid.NewGuid();
 
 		// Act & Assert
-		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.CreateBookingAsync(fakeEventId));
+		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.CreateBookingAsync(fakeEventId, userId));
 	}
 
 	[Fact]
@@ -153,10 +157,11 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync();
+		var userId = Guid.NewGuid();
 		await _eventService.Delete(eventId);
 
 		// Act & Assert
-		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.CreateBookingAsync(eventId));
+		await Assert.ThrowsAsync<NotFoundException>(() => _bookingService.CreateBookingAsync(eventId, userId));
 	}
 
 	[Fact]
@@ -178,6 +183,7 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync(totalSeats: 5);
+		var userId = Guid.NewGuid();
 
 		int seatsBefore, seatsAfter;
 		using (var scope = _serviceProvider.CreateScope())
@@ -187,7 +193,7 @@ public class BookingServiceTests : IAsyncLifetime
 		}
 
 		// Act
-		await _bookingService.CreateBookingAsync(eventId);
+		await _bookingService.CreateBookingAsync(eventId, userId);
 
 		using (var scope = _serviceProvider.CreateScope())
 		{
@@ -204,10 +210,11 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange
 		var eventId = await CreateTestEventAsync(totalSeats: 1);
-		await _bookingService.CreateBookingAsync(eventId); // Забираем единственное место
+		var userId = Guid.NewGuid();
+		await _bookingService.CreateBookingAsync(eventId, userId); // Забираем единственное место
 
 		// Act & Assert
-		await Assert.ThrowsAsync<NoAvailableSeatsException>(() => _bookingService.CreateBookingAsync(eventId));
+		await Assert.ThrowsAsync<NoAvailableSeatsException>(() => _bookingService.CreateBookingAsync(eventId, userId));
 	}
 
 	[Fact]
@@ -215,19 +222,20 @@ public class BookingServiceTests : IAsyncLifetime
 	{
 		// Arrange: событие на 1 место
 		var eventId = await CreateTestEventAsync(totalSeats: 1);
+		var userId = Guid.NewGuid();
 
 		// Act 1: Забираем единственное место
-		var booking1 = await _bookingService.CreateBookingAsync(eventId);
+		var booking1 = await _bookingService.CreateBookingAsync(eventId, userId);
 
 		// Act 2: Пытаемся забронировать ещё раз (ожидаем исключение)
-		await Assert.ThrowsAsync<NoAvailableSeatsException>(() => _bookingService.CreateBookingAsync(eventId));
+		await Assert.ThrowsAsync<NoAvailableSeatsException>(() => _bookingService.CreateBookingAsync(eventId, userId));
 
 		// Act 3: Отклоняем бронь, возвращаем место
 		using (var scope = _serviceProvider.CreateScope())
 		{
 			var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 			var domainBooking = (await db.Bookings.FindAsync(booking1.Id))!;
-			domainBooking.Reject();
+			domainBooking.Cancel();
 
 			var eventToUpdate = (await db.Events.FindAsync(eventId))!;
 			eventToUpdate.ReleaseSeats();
@@ -247,11 +255,117 @@ public class BookingServiceTests : IAsyncLifetime
 		using (var finalScope = _serviceProvider.CreateScope())
 		{
 			var freshBookingService = finalScope.ServiceProvider.GetRequiredService<IBookingService>();
-			var booking2 = await freshBookingService.CreateBookingAsync(eventId);
+			var booking2 = await freshBookingService.CreateBookingAsync(eventId, userId);
 
 			Assert.NotNull(booking2);
 			Assert.NotEqual(booking1.Id, booking2.Id);
 		}
+	}
+
+	#endregion
+
+	#region Тесты 8-го спринта (Бизнес-правила и Авторизация)
+
+	[Fact]
+	public async Task CreateBooking_ForPastEvent_ShouldThrowPastEventBookingException()
+	{
+		// Arrange
+		// Создаем событие, которое уже началось (вчера)
+		var eventId = await CreateTestEventAsync(startAt: DateTime.UtcNow.AddDays(-1));
+		var userId = Guid.NewGuid();
+
+		// Act & Assert
+		await Assert.ThrowsAsync<PastEventBookingException>(() => _bookingService.CreateBookingAsync(eventId, userId));
+	}
+
+	[Fact]
+	public async Task CreateBooking_WhenLimitExceeded_ShouldThrowActiveBookingLimitExceededException()
+	{
+		// Arrange
+		// Создаем событие с большим количеством мест, чтобы упереться в лимит брони (10), а не в места
+		var eventId = await CreateTestEventAsync(totalSeats: 20);
+		var userId = Guid.NewGuid();
+
+		// Создаем 10 активных броней (лимит)
+		for (int i = 0; i < 10; i++)
+		{
+			await _bookingService.CreateBookingAsync(eventId, userId);
+		}
+
+		// Act & Assert
+		// 11-я броня должна вызвать исключение
+		await Assert.ThrowsAsync<ActiveBookingLimitExceededException>(() => _bookingService.CreateBookingAsync(eventId, userId));
+	}
+
+	[Fact]
+	public async Task CreateBooking_LimitsOfDifferentUsers_ShouldNotAffectEachOther()
+	{
+		// Arrange
+		var eventId = await CreateTestEventAsync(totalSeats: 20);
+		var user1Id = Guid.NewGuid();
+		var user2Id = Guid.NewGuid();
+
+		// User 1 упирается в лимит
+		for (int i = 0; i < 10; i++)
+		{
+			await _bookingService.CreateBookingAsync(eventId, user1Id);
+		}
+
+		// Act
+		// User 2 должен спокойно забронировать (у него 0 броней)
+		var booking = await _bookingService.CreateBookingAsync(eventId, user2Id);
+
+		// Assert
+		Assert.NotNull(booking);
+		Assert.Equal(BookingStatus.Pending, booking.Status);
+	}
+
+	[Fact]
+	public async Task CancelBooking_ForOwnBooking_AsUser_ShouldCancelSuccessfully()
+	{
+		// Arrange
+		var eventId = await CreateTestEventAsync();
+		var userId = Guid.NewGuid();
+		var booking = await _bookingService.CreateBookingAsync(eventId, userId);
+
+		// Act
+		await _bookingService.CancelBookingAsync(booking.Id, userId, Role.User);
+
+		// Assert
+		var cancelledBooking = await _bookingService.GetBookingByIdAsync(booking.Id);
+		Assert.Equal(BookingStatus.Cancelled, cancelledBooking.Status);
+	}
+
+	[Fact]
+	public async Task CancelBooking_ForForeignBooking_AsUser_ShouldThrowForbiddenException()
+	{
+		// Arrange
+		var eventId = await CreateTestEventAsync();
+		var ownerId = Guid.NewGuid();
+		var requestingUserId = Guid.NewGuid(); // Другой пользователь
+
+		var booking = await _bookingService.CreateBookingAsync(eventId, ownerId);
+
+		// Act & Assert
+		await Assert.ThrowsAsync<ForbiddenException>(() => _bookingService.CancelBookingAsync(booking.Id, requestingUserId, Role.User));
+	}
+
+	[Fact]
+	public async Task CancelBooking_ForForeignBooking_AsAdmin_ShouldCancelSuccessfully()
+	{
+		// Arrange
+		var eventId = await CreateTestEventAsync();
+		var ownerId = Guid.NewGuid();
+		var adminId = Guid.NewGuid(); // Админ
+
+		var booking = await _bookingService.CreateBookingAsync(eventId, ownerId);
+
+		// Act
+		await _bookingService.CancelBookingAsync(booking.Id, adminId, Role.Admin);
+
+		// Assert
+		var cancelledBooking = await _bookingService.GetBookingByIdAsync(booking.Id);
+		Assert.Equal(BookingStatus.Cancelled, cancelledBooking.Status);
 	}
 
 	#endregion

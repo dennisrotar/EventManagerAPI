@@ -1,7 +1,9 @@
 ﻿using EventManager.Application.DTOs;
 using EventManager.Application.DTOs.Booking;
 using EventManager.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace EventManagerAPI.Controllers;
 
@@ -15,25 +17,20 @@ public class EventsController : ControllerBase
 {
 	private readonly IEventService _eventService;
 	private readonly IBookingService _bookingService;
-
 	private readonly ILogger<EventsController> _logger;
 
 	public EventsController(IEventService eventService, IBookingService bookingService, ILogger<EventsController> logger)
 	{
 		_eventService = eventService;
 		_bookingService = bookingService;
-		
 		_logger = logger;
 	}
 
 	/// <summary>
 	/// Получить список мероприятий с возможностью фильтрации по названию и датам, а также пагинацией.
 	/// </summary>
-	/// <param name="query"> Объект с параметрами фильтрации и пагинации (передаются через query string).</param>
-	/// <returns> Возвращает страницу с мероприятиями и метаданными пагинации.</returns>
-	/// <response code="200"> Успешный возврат списка.</response>
-	/// <response code="400"> Ошибка валидации параметров запроса (например, page < 1).</response>
 	[HttpGet]
+	[AllowAnonymous] // Доступен всем без токена
 	public async Task<ActionResult<PaginatedResultDto<EventResponseDto>>> GetAll([FromQuery] GetEventsQueryParams query)
 	{
 		_logger.LogDebug("Входящий GET запрос на /events");
@@ -48,11 +45,8 @@ public class EventsController : ControllerBase
 	/// <summary>
 	/// Получить мероприятие по его уникальному идентификатору.
 	/// </summary>
-	/// <param name="id"> Guid идентификатора мероприятия.</param>
-	/// <returns> Возвращает данные мероприятия.</returns>
-	/// <response code="200"> Мероприятие найдено.</response>
-	/// <response code="404"> Мероприятие с указанным ID не найдено.</response>
 	[HttpGet("{id:guid}")]
+	[AllowAnonymous] // Доступен всем без токена
 	public async Task<ActionResult<EventResponseDto>> GetById(Guid id)
 	{
 		_logger.LogDebug("Входящий GET запрос на /events/{Id}", id);
@@ -62,12 +56,13 @@ public class EventsController : ControllerBase
 	}
 
 	/// <summary>
-	/// Создать новое мероприятие.
+	/// Создать новое мероприятие. (Только для администраторов)
 	/// </summary>
 	[HttpPost]
+	[Authorize(Roles = "Admin")] // Защита: только Админ
 	public async Task<ActionResult<EventResponseDto>> Create([FromBody] CreateEventRequestDto dto)
 	{
-		_logger.LogDebug("Входящий POST запрос на /events");
+		_logger.LogDebug("Входящий POST запрос на /events от администратора");
 
 		var createdEvent = await _eventService.Create(dto);
 
@@ -78,12 +73,23 @@ public class EventsController : ControllerBase
 	/// Создать бронь для указанного мероприятия (быстрый ответ + отложенная обработка).
 	/// </summary>
 	[HttpPost("{id:guid}/book")]
+	[Authorize] // Защита: только аутентифицированные пользователи
 	public async Task<ActionResult<BookingResponseDto>> CreateBooking(Guid id)
 	{
-		var bookingDto = await _bookingService.CreateBookingAsync(id);
+		// Получаем UserId из JWT-токена
+		var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+		if (string.IsNullOrEmpty(userIdString))
+		{
+			_logger.LogWarning("Не удалось извлечь UserId из токена.");
+			return Unauthorized();
+		}
 
-		// Возвращаем 202 Accepted
-		// Используем CreatedAtAction для автоматической генерации заголовка Location
+		var userId = Guid.Parse(userIdString);
+		_logger.LogDebug("Входящий POST запрос на /events/{EventId}/book от пользователя {UserId}", id, userId);
+
+		// Передаем userId в сервис
+		var bookingDto = await _bookingService.CreateBookingAsync(id, userId);
+
 		return AcceptedAtAction(
 			actionName: nameof(BookingsController.GetBooking),
 			controllerName: nameof(BookingsController).Replace("Controller", ""),
@@ -92,31 +98,25 @@ public class EventsController : ControllerBase
 	}
 
 	/// <summary>
-	/// Полностью обновить существующее мероприятие.
+	/// Полностью обновить существующее мероприятие. (Только для администраторов)
 	/// </summary>
-	/// <param name="id"> Guid идентификатора обновляемого мероприятия.</param>
-	/// <param name="dto"> Новые данные для мероприятия.</param>
-	/// <response code="204"> Мероприятие успешно обновлено.</response>
-	/// <response code="400"> Ошибка валидации данных.</response>
-	/// <response code="404"> Мероприятие для обновления не найдено.</response>
 	[HttpPut("{id:guid}")]
+	[Authorize(Roles = "Admin")] // Защита: только Админ
 	public async Task<ActionResult> Update(Guid id, [FromBody] UpdateEventRequestDto dto)
 	{
-		_logger.LogDebug("Входящий PUT запрос на /events/{Id}", id);
+		_logger.LogDebug("Входящий PUT запрос на /events/{Id} от администратора", id);
 		await _eventService.Update(id, dto);
 		return NoContent();
 	}
 
 	/// <summary>
-	/// Удалить мероприятие по идентификатору.
+	/// Удалить мероприятие по идентификатору. (Только для администраторов)
 	/// </summary>
-	/// <param name="id">Guid идентификатора удаляемого мероприятия.</param>
-	/// <response code="204">Мероприятие успешно удалено.</response>
-	/// <response code="404">Мероприятие для удаления не найдено.</response>
 	[HttpDelete("{id:guid}")]
+	[Authorize(Roles = "Admin")] // Защита: только Админ
 	public async Task<ActionResult> Delete(Guid id)
 	{
-		_logger.LogDebug("Входящий DELETE запрос на /events/{Id}", id);
+		_logger.LogDebug("Входящий DELETE запрос на /events/{Id} от администратора", id);
 		await _eventService.Delete(id);
 		return NoContent();
 	}

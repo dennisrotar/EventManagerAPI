@@ -6,34 +6,22 @@ using Microsoft.Extensions.Logging;
 
 namespace EventManager.Application.Services;
 
-/// <summary>
-/// Реализация use case сервиса бронирований.
-/// Содержит бизнес-логику создания и получения бронирований.
-/// Зависит только от Domain (сущности, исключения) и интерфейсов портов (IBookingRepository).
-/// </summary>
 public class BookingService : IBookingService
 {
 	private readonly IBookingRepository _bookingRepo;
 	private readonly ILogger<BookingService> _logger;
 
-	// Static SemaphoreSlim, так как сервис Scoped, а нужна синхронизация между запросами
+	private const int MaxActiveBookings = 10;
 	private static readonly SemaphoreSlim _bookingLock = new(1, 1);
 
-	/// <summary>
-	/// Конструктор с внедрением зависимостей.
-	/// </summary>
-	/// <param name="bookingRepo">Порт репозитория бронирований (реализация в Infrastructure).</param>
-	/// <param name="logger">Логгер.</param>
 	public BookingService(IBookingRepository bookingRepo, ILogger<BookingService> logger)
 	{
 		_bookingRepo = bookingRepo ?? throw new ArgumentNullException(nameof(bookingRepo));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
-	/// <inheritdoc/>
-	public async Task<BookingResponseDto> CreateBookingAsync(Guid eventId)
+	public async Task<BookingResponseDto> CreateBookingAsync(Guid eventId, Guid userId)
 	{
-		// Синхронизация: только один поток может бронировать одновременно
 		await _bookingLock.WaitAsync();
 		try
 		{
@@ -41,12 +29,21 @@ public class BookingService : IBookingService
 			var eventEntity = await _bookingRepo.GetEventByIdAsync(eventId, CancellationToken.None)
 				?? throw new NotFoundException($"Мероприятие с ID {eventId} не найдено.");
 
-			// 2. Проверить доступность мест (бизнес-правило в доменной сущности)
+			// 2. Проверить, что событие не в прошлом
+			if (eventEntity.StartAt <= DateTime.UtcNow)
+				throw new PastEventBookingException("Нельзя забронировать мероприятие, которое уже началось.");
+
+			// 3. Проверить лимит активных броней пользователя
+			var activeBookingsCount = await _bookingRepo.CountActiveByUserIdAsync(userId, CancellationToken.None);
+			if (activeBookingsCount >= MaxActiveBookings)
+				throw new ActiveBookingLimitExceededException(MaxActiveBookings);
+
+			// 4. Проверить доступность мест (ВЫЗЫВАЕТСЯ ТОЛЬКО ОДИН РАЗ!)
 			if (!eventEntity.TryReserveSeats())
 				throw new NoAvailableSeatsException("Свободных мест на это мероприятие нет.");
 
-			// 3. Создать бронь (фабричный метод доменной сущности)
-			var booking = Booking.CreatePending(eventId);
+			// 5. Создать бронь
+			var booking = Booking.CreatePending(eventId, userId);
 			_bookingRepo.Add(booking);
 			await _bookingRepo.SaveChangesAsync(CancellationToken.None);
 
@@ -55,7 +52,6 @@ public class BookingService : IBookingService
 		finally { _bookingLock.Release(); }
 	}
 
-	/// <inheritdoc/>
 	public async Task<BookingResponseDto> GetBookingByIdAsync(Guid bookingId)
 	{
 		var booking = await _bookingRepo.GetByIdAsync(bookingId, CancellationToken.None)
@@ -63,9 +59,27 @@ public class BookingService : IBookingService
 		return MapToDto(booking);
 	}
 
-	/// <summary>
-	/// Приватный метод маппинга доменной сущности Booking в DTO ответа.
-	/// </summary>
+	public async Task CancelBookingAsync(Guid bookingId, Guid requestingUserId, Role requestingUserRole)
+	{
+		// ВАЖНО: Используем GetTrackedByIdAsync, чтобы EF Core отследил изменения статуса!
+		var booking = await _bookingRepo.GetTrackedByIdAsync(bookingId, CancellationToken.None)
+			?? throw new NotFoundException($"Бронирование с ID {bookingId} не найдено.");
+
+		if (booking.UserId != requestingUserId && requestingUserRole != Role.Admin)
+			throw new ForbiddenException("Вы можете отменять только собственные бронирования.");
+
+		booking.Cancel();
+
+		// Восстанавливаем места: Находим событие и возвращаем место
+		var eventEntity = await _bookingRepo.GetEventByIdAsync(booking.EventId, CancellationToken.None);
+		if (eventEntity != null)
+		{
+			eventEntity.ReleaseSeats();
+		}
+
+		await _bookingRepo.SaveChangesAsync(CancellationToken.None);
+	}
+
 	private static BookingResponseDto MapToDto(Booking b) => new()
 	{
 		Id = b.Id,

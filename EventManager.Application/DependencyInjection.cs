@@ -23,6 +23,7 @@ public static class DependencyInjection
 		// Регистрация use case сервисов (Scoped — привязаны к HTTP-запросу)
 		services.AddScoped<IEventService, EventService>();
 		services.AddScoped<IBookingService, BookingService>();
+		services.AddScoped<IUserService, UserService>();
 
 		// Фоновый сервис обработки бронирований (Singleton — живёт всё время работы приложения)
 		services.AddHostedService<BookingBackgroundService>();
