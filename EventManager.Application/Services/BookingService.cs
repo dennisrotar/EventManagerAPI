@@ -70,6 +70,13 @@ public class BookingService : IBookingService
 
 		booking.Cancel();
 
+		// Восстанавливаем места: Находим событие и возвращаем место
+		var eventEntity = await _bookingRepo.GetEventByIdAsync(booking.EventId, CancellationToken.None);
+		if (eventEntity != null)
+		{
+			eventEntity.ReleaseSeats();
+		}
+
 		await _bookingRepo.SaveChangesAsync(CancellationToken.None);
 	}
 
