@@ -39,6 +39,8 @@ public class BookingRepository : IBookingRepository
 
 	public async Task<int> CountActiveByUserIdAsync(Guid userId, CancellationToken ct)
 	{
-		return await _context.Bookings.CountAsync(b => b.UserId == userId && b.Status != BookingStatus.Cancelled, ct);
+		return await _context.Bookings
+			.CountAsync(b => b.UserId == userId &&
+							 (b.Status == BookingStatus.Pending || b.Status == BookingStatus.Confirmed), ct);
 	}
 }

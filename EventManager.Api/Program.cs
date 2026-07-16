@@ -116,11 +116,22 @@ builder.Services.AddInfrastructureServices(builder.Configuration);
 var app = builder.Build();
 
 // Применение миграций при старте
+//using (var scope = app.Services.CreateScope())
+//{
+//	var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+//	db.Database.Migrate();
+//}
+
+// Применение миграций при старте (пропускаем для InMemory, используемого в тестах)
 using (var scope = app.Services.CreateScope())
 {
 	var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-	db.Database.Migrate();
+	if (db.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
+	{
+		db.Database.Migrate();
+	}
 }
+
 
 // Swagger (только в Development)
 if (app.Environment.IsDevelopment())
@@ -141,3 +152,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { } // Нужно для WebApplicationFactory
