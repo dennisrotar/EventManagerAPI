@@ -1,7 +1,7 @@
 using Events.Application;
 using Events.Infrastructure;
 using Events.Infrastructure.DataAccess;
-//using Events.Infrastructure.Messaging;
+using Events.Infrastructure.Messaging;
 using Events.Api;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
@@ -97,8 +97,8 @@ builder.Services.AddSwaggerGen(c =>
 // ═══════════════════════════════════════════════════
 // Kafka (Подписчик)
 // ═══════════════════════════════════════════════════
-//builder.Services.AddHostedService<KafkaTopicCreator>();
-//builder.Services.AddHostedService<KafkaConsumer>();
+builder.Services.AddHostedService<KafkaTopicCreator>();
+builder.Services.AddHostedService<KafkaConsumer>();
 
 // ═══════════════════════════════════════════════════
 // Application & Infrastructure Layers
