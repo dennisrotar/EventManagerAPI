@@ -1,23 +1,137 @@
+using Events.Application;
+using Events.Infrastructure;
+using Events.Infrastructure.DataAccess;
+//using Events.Infrastructure.Messaging;
+using Events.Api;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Text;
+using System.Text.Json.Serialization;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// ═══════════════════════════════════════════════════
+// Framework Services
+// ═══════════════════════════════════════════════════
+builder.Services.AddProblemDetails();
 
-builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddControllers()
+	.AddJsonOptions(options =>
+	{
+		options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+	});
 
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+	options.InvalidModelStateResponseFactory = context =>
+	{
+		var problemDetails = new ValidationProblemDetails(context.ModelState)
+		{
+			Status = 400,
+			Title = "One or more validation errors occurred.",
+			Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+			Instance = context.HttpContext.Request.Path
+		};
+		problemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+		return new BadRequestObjectResult(problemDetails);
+	};
+});
+
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+// Настройка JWT Аутентификации (проверка токена от Users)
+var jwtSettings = builder.Configuration.GetSection("Jwt");
+var key = Encoding.UTF8.GetBytes(jwtSettings["Secret"]!);
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+	.AddJwtBearer(options =>
+	{
+		options.TokenValidationParameters = new TokenValidationParameters
+		{
+			ValidateIssuer = true,
+			ValidIssuer = jwtSettings["Issuer"],
+			ValidateAudience = true,
+			ValidAudience = jwtSettings["Audience"],
+			ValidateLifetime = true,
+			ValidateIssuerSigningKey = true,
+			IssuerSigningKey = new SymmetricSecurityKey(key)
+		};
+	});
+
+builder.Services.AddAuthorization();
+
+// Swagger
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+	c.SwaggerDoc("v1", new OpenApiInfo { Title = "Events API", Version = "v1" });
+
+	c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+	{
+		Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+		Name = "Authorization",
+		In = ParameterLocation.Header,
+		Type = SecuritySchemeType.Http,
+		Scheme = "bearer",
+		BearerFormat = "JWT"
+	});
+	c.AddSecurityRequirement(new OpenApiSecurityRequirement
+	{
+		{
+			new OpenApiSecurityScheme
+			{
+				Reference = new OpenApiReference
+				{
+					Type = ReferenceType.SecurityScheme,
+					Id = "Bearer"
+				}
+			},
+			Array.Empty<string>()
+		}
+	});
+});
+
+// ═══════════════════════════════════════════════════
+// Kafka (Подписчик)
+// ═══════════════════════════════════════════════════
+//builder.Services.AddHostedService<KafkaTopicCreator>();
+//builder.Services.AddHostedService<KafkaConsumer>();
+
+// ═══════════════════════════════════════════════════
+// Application & Infrastructure Layers
+// ═══════════════════════════════════════════════════
+builder.Services.AddApplicationServices();
+builder.Services.AddInfrastructureServices(builder.Configuration);
+
+// ═══════════════════════════════════════════════════
+// Build
+// ═══════════════════════════════════════════════════
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Применение миграций при старте
+using (var scope = app.Services.CreateScope())
+{
+	var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+	if (db.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
+	{
+		db.Database.Migrate();
+	}
+}
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+	app.UseSwagger();
+	app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
-
+app.UseExceptionHandler();
+app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();
+
+public partial class Program { }

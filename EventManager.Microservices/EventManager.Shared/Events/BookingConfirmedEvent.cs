@@ -1,6 +1,4 @@
-using System;
-
-namespace EventManager.Shared.Events
+namespace Events.Shared.Events
 {
 	public record BookingConfirmedEvent(
 		Guid BookingId,

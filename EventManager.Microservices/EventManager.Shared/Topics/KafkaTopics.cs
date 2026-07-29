@@ -1,4 +1,4 @@
-namespace EventManager.Shared.Topics
+namespace Events.Shared.Topics
 {
 	public static class KafkaTopics
 	{
