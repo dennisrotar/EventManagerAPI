@@ -22,9 +22,29 @@ public class BookingsController : ControllerBase
 	}
 
 	/// <summary>
+	/// Создать новую бронь на мероприятие.
+	/// </summary>
+	[HttpPost]
+	[ProducesResponseType(StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	public async Task<ActionResult<BookingResponseDto>> CreateBooking([FromBody] BookingResponseDto dto)
+	{
+		// Достаем Guid пользователя из JWT-токена
+		var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+		// Создаем бронь
+		var booking = await _bookingService.CreateBookingAsync(dto.EventId, userId);
+
+		return Ok(booking);
+	}
+
+	/// <summary>
 	/// Получить статус бронирования по ID.
 	/// </summary>
 	[HttpGet("{id:guid}")]
+	[ProducesResponseType(StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	public async Task<ActionResult<BookingResponseDto>> GetBooking(Guid id)
 	{
 		var booking = await _bookingService.GetBookingByIdAsync(id);
@@ -33,7 +53,7 @@ public class BookingsController : ControllerBase
 
 	/// <summary>
 	/// Отменить бронь.
-	/// Пользователь может отменить только свою бронь, администратор — любую.
+	/// Пользователь может отменить только свою бронь.
 	/// </summary>
 	[HttpDelete("{id:guid}")]
 	[ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -41,23 +61,11 @@ public class BookingsController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	public async Task<ActionResult> CancelBooking(Guid id)
 	{
-		// Читаем UserId из claims (JWT-токена)
-		var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
-		// Читаем Role из claims
-		var roleString = User.FindFirstValue(ClaimTypes.Role);
-
-		if (string.IsNullOrEmpty(userIdString) || string.IsNullOrEmpty(roleString))
-		{
-			return Unauthorized();
-		}
-
-		//var userId = Guid.Parse(userIdString);
+		// Достаем Guid пользователя из JWT-токена
 		var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-		// Передаем ID брони, ID пользователя и его роль в сервис (где и идет проверка прав)
-		//await _bookingService.CancelBookingAsync(id, userId);
-
-		await _bookingService.CreateBookingAsync(id, userId);
+		// Вызываем метод отмены (сервис сам проверит, что это бронь текущего пользователя)
+		await _bookingService.CancelBookingAsync(id, userId);
 
 		return NoContent(); // 204 No Content
 	}
