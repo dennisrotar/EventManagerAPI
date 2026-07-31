@@ -1,4 +1,5 @@
 using Bookings.Application.Interfaces;
+using EventManager.Shared.Events;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -67,6 +68,9 @@ public class BookingBackgroundService : BackgroundService
 		using var scope = _scopeFactory.CreateScope();
 		var bookingRepo = scope.ServiceProvider.GetRequiredService<IBookingRepository>();
 
+		// Получаем издателя kafka
+		var eventPublisher = scope.ServiceProvider.GetRequiredService<IEventPublisher>();
+
 		try
 		{
 			// Имитация отложенной обработки
@@ -78,12 +82,22 @@ public class BookingBackgroundService : BackgroundService
 			// Подтверждаем бронь
 			booking.Confirm();
 			await bookingRepo.SaveChangesAsync(stoppingToken);
-			_logger.LogInformation("Бронь {Id} подтверждена", bookingId);
+
+			_logger.LogInformation("Бронь {Id} подтверждена в БД. Публикация в Kafka...", bookingId);
+
+			// 2. Публикуем событие в Kafka
+			var eventMessage = new BookingConfirmedEvent(
+				booking.Id,
+				booking.EventId,
+				booking.UserId,
+				1, // Количество мест. Если у тебя в Booking есть поле SeatsBooked, используй booking.SeatsBooked
+				DateTime.UtcNow
+			);
+
+			await eventPublisher.PublishBookingConfirmedAsync(eventMessage, booking.EventId);
+			_logger.LogInformation("Событие BookingConfirmed для брони {Id} опубликовано в Kafka.", bookingId);
 		}
-		catch (OperationCanceledException)
-		{
-			_logger.LogInformation("Обработка брони {bookingId} отменена", bookingId);
-		}
+		catch (OperationCanceledException) { /* Игнорируем */ }
 		catch (Exception ex)
 		{
 			// Непредвиденная ошибка — логируем, не крашим сервис

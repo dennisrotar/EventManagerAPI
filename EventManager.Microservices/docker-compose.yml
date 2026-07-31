@@ -99,6 +99,8 @@ services:
       users-db:
         condition: service_healthy
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=users-db;Port=5432;Database=users_db;Username=admin;Password=password
       - Jwt__Secret=SUPER_SECRET_KEY_FOR_EVENT_MANAGER_2024_VERY_LONG
       - Jwt__Issuer=EventManager
@@ -117,6 +119,8 @@ services:
       kafka:
         condition: service_healthy
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=events-db;Port=5432;Database=events_db;Username=admin;Password=password
       - Jwt__Secret=SUPER_SECRET_KEY_FOR_EVENT_MANAGER_2024_VERY_LONG
       - Jwt__Issuer=EventManager
@@ -137,6 +141,8 @@ services:
       kafka:
         condition: service_healthy
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=bookings-db;Port=5432;Database=bookings_db;Username=admin;Password=password
       - Jwt__Secret=SUPER_SECRET_KEY_FOR_EVENT_MANAGER_2024_VERY_LONG
       - Jwt__Issuer=EventManager

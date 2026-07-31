@@ -22,6 +22,10 @@ RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
 # Этап 2: Выполнение (Runtime)
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
+
+# Устанавливаем зависимости для Kafka (libgssapi_krb5)
+RUN apt-get update && apt-get install -y libgssapi-krb5-2 && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/publish .
 
 # Открываем порт и запускаем

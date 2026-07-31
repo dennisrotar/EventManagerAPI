@@ -1,4 +1,5 @@
-﻿using Bookings.Infrastructure.DataAccess;
+﻿using Bookings.Infrastructure.Messaging;
+using Bookings.Infrastructure.DataAccess;
 using Bookings.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -31,6 +32,9 @@ public static class DependencyInjection
 
 		// Регистрация реализаций портов (адаптеров) — Scoped
 		services.AddScoped<IBookingRepository, BookingRepository>();
+
+		// Регистрируем Kafka Producer как Singleton
+		services.AddSingleton<IEventPublisher, KafkaProducer>();
 
 		return services;
 	}
