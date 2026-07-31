@@ -5,12 +5,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Bookings.Application.BackgroundServices;
 
-/// <summary>
-/// Фоновый сервис для имитации отложенной обработки бронирований.
-/// Опрашивает хранилище через порт IBookingRepository и переводит
-/// Pending-брони в Confirmed.
-/// Отнесён к Application, так как оркестрирует бизнес-процесс.
-/// </summary>
 public class BookingBackgroundService : BackgroundService
 {
 	private readonly IServiceScopeFactory _scopeFactory;
