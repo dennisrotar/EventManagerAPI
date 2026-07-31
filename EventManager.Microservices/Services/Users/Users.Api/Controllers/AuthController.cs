@@ -2,7 +2,7 @@
 using Users.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Events.Api.Controllers;
+namespace Users.Api.Controllers;
 
 [ApiController]
 [Route("auth")]

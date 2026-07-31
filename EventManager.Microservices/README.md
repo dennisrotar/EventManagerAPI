@@ -29,10 +29,13 @@
 
 ## Запуск
 
+> [!important]
+> **Важно!** Команду `docker compose up` необходимо выполнять из папки `EventManager.Microservices`.
+
 Для запуска всей системы необходим Docker.
 
 ```bash
-docker compose up --build
+cd EventManager.Microservicesdocker compose up --build
 ```
 
 После запуска Swagger доступен по адресам:
