@@ -56,4 +56,15 @@ public class EventRepository : IEventRepository
 	public void Remove(Event eventEntity) => _context.Events.Remove(eventEntity);
 
 	public async Task SaveChangesAsync(CancellationToken ct) => await _context.SaveChangesAsync(ct);
+
+	// Получение топ 10 самых популярных событий
+	public async Task<List<Event>> GetTopEventsAsync(int count, CancellationToken ct)
+	{
+		return await _context.Events.AsNoTracking()
+			// Сортируем по проценту проданных мест (убывание). 
+			// (TotalSeats - AvailableSeats) / TotalSeats * 100. Умножение на 100 можно опустить для сортировки.
+			.OrderByDescending(e => (double)(e.TotalSeats - e.AvailableSeats) / e.TotalSeats)
+			.Take(count)
+			.ToListAsync(ct);
+	}
 }

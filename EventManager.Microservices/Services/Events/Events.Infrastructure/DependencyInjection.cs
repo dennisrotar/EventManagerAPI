@@ -1,9 +1,11 @@
 ﻿using Events.Application.Interfaces;
+using Events.Infrastructure.Cache;
+using Events.Infrastructure.DataAccess;
 using Events.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Events.Infrastructure.DataAccess;
+using StackExchange.Redis;
 
 namespace Events.Infrastructure;
 
@@ -28,6 +30,15 @@ public static class DependencyInjection
 				options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
 		services.AddScoped<IEventRepository, EventRepository>();
+
+		// Регистрация Redis
+		var redisConn = configuration.GetConnectionString("Redis")
+						?? throw new InvalidOperationException("Redis connection string is missing");
+
+		services.AddSingleton<IConnectionMultiplexer>(sp =>
+			ConnectionMultiplexer.Connect(redisConn));
+
+		services.AddScoped<ICacheService, RedisCacheService>();
 
 		return services;
 	}
