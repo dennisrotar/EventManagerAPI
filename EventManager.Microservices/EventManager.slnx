@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/Services/Events/">
     <Project Path="Services/Events/Events.Api/Events.Api.csproj" />
+    <Project Path="Services/Events/Events.Application.Tests/Events.Application.Tests.csproj" />
     <Project Path="Services/Events/Events.Application/Events.Application.csproj" />
     <Project Path="Services/Events/Events.Domain/Events.Domain.csproj" />
     <Project Path="Services/Events/Events.Infrastructure/Events.Infrastructure.csproj" />
