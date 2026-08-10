@@ -89,6 +89,18 @@ services:
     ports:
       - "5435:5432"
 
+  # ─────────────────────────── Кеш (Redis) ───────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: eventapi-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "6379:6379"
+
   # ─────────────────────────── Микросервисы ───────────────────────────
   users-api:
     build:
@@ -118,10 +130,13 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=events-db;Port=5432;Database=events_db;Username=admin;Password=password
+      - ConnectionStrings__Redis=redis:6379 # <--- Добавлено
       - Jwt__Secret=SUPER_SECRET_KEY_FOR_EVENT_MANAGER_2024_VERY_LONG
       - Jwt__Issuer=EventManager
       - Jwt__Audience=EventManagerUsers
