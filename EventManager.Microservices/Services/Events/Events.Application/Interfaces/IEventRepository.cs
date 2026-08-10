@@ -19,6 +19,8 @@ public interface IEventRepository
 	/// <summary>Получить мероприятие по ID. Null, если не найдено.</summary>
 	Task<Event?> GetByIdAsync(Guid id, CancellationToken ct);
 
+	Task<List<Event>> GetTopEventsAsync(int count, CancellationToken ct);
+
 	/// <summary>Добавить новое мероприятие в хранилище.</summary>
 	void Add(Event eventEntity);
 

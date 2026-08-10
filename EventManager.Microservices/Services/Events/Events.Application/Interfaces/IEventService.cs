@@ -23,6 +23,8 @@ public interface IEventService
 	/// </exception>
 	Task<EventResponseDto> GetById(Guid id);
 
+	Task<List<EventResponseDto>> GetTopEvents(int count);
+
 	/// <summary>
 	/// Создать новое мероприятие.
 	/// </summary>
