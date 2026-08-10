@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Events.Application.Interfaces;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using System.Text.Json;
 
@@ -29,7 +30,7 @@ public class RedisCacheService : ICacheService
 			if (value.IsNullOrEmpty)
 				return default;
 
-			return JsonSerializer.Deserialize<T>(value!);
+			return JsonSerializer.Deserialize<T>(value.ToString()!);
 		}
 		catch (Exception ex)
 		{

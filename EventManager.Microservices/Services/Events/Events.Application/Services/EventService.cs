@@ -34,9 +34,9 @@ public class EventService : IEventService
 	/// <param name="eventRepo">Порт репозитория мероприятий (реализация в Infrastructure).</param>
 	/// <param name="logger">Логгер для записи отладочной информации.</param>
 	public EventService(IEventRepository eventRepo,
-									ILogger<EventService> logger,
 									ICacheService cache,
-									IOptions<CacheSettings> cacheSettings)
+									IOptions<CacheSettings> cacheSettings,
+									ILogger<EventService> logger)
 	{
 		_eventRepo = eventRepo ?? throw new ArgumentNullException(nameof(eventRepo));
 		 _cache = cache ?? throw new ArgumentNullException(nameof(cache));
