@@ -23,6 +23,17 @@ public class EventsController : ControllerBase
 	}
 
 	/// <summary>
+	/// Топ 10 событий с наибольшим процентом проданных мест.
+	/// </summary>
+	[HttpGet("top")]
+	[AllowAnonymous]
+	public async Task<ActionResult<List<EventResponseDto>>> GetTopEvents()
+	{
+		var topEvents = await _eventService.GetTopEvents(10);
+		return Ok(topEvents);
+	}
+
+	/// <summary>
 	/// Получить список мероприятий с возможностью фильтрации по названию и датам, а также пагинацией.
 	/// </summary>
 	[HttpGet]
