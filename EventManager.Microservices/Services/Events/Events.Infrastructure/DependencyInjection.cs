@@ -34,6 +34,10 @@ public static class DependencyInjection
 		// Регистрация Redis
 		var redisConn = configuration.GetConnectionString("Redis")
 						?? throw new InvalidOperationException("Redis connection string is missing");
+		
+		// Не ронять приложение при старте, если Redis недоступен
+		var redisOptions = ConfigurationOptions.Parse(redisConn);
+		redisOptions.AbortOnConnectFail = false;
 
 		services.AddSingleton<IConnectionMultiplexer>(sp =>
 			ConnectionMultiplexer.Connect(redisConn));

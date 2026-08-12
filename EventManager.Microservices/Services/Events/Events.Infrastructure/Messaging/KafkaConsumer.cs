@@ -88,9 +88,9 @@ namespace Events.Infrastructure.Messaging
 						// 1. Сохраняем в БД
 						await dbContext.SaveChangesAsync(stoppingToken);
 
-						// 2. Инвалидируем кеш конкретного события и топ-10
+						// 2. Инвалидируем кеш конкретного события (так как изменилось AvailableSeats)
+						// Топ-10 при этом не трогаем, он обновится по TTL
 						await cacheService.RemoveAsync($"event:{@event.EventId}", stoppingToken);
-						await cacheService.RemoveAsync("events:top10", stoppingToken);
 
 						_consumer.Commit(consumeResult);
 					}
