@@ -50,6 +50,7 @@ namespace Events.Infrastructure.Messaging
 
 						using var scope = _serviceProvider.CreateScope();
 						var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+						var cacheService = scope.ServiceProvider.GetRequiredService<ICacheService>();
 
 						// 1. Проверяем идемпотентность
 						var existingRecord = await dbContext.ProcessedMessages.FindAsync(@event.BookingId);
@@ -84,7 +85,13 @@ namespace Events.Infrastructure.Messaging
 							ProcessedAt = DateTime.UtcNow
 						});
 
+						// 1. Сохраняем в БД
 						await dbContext.SaveChangesAsync(stoppingToken);
+
+						// 2. Инвалидируем кеш конкретного события (так как изменилось AvailableSeats)
+						// Топ-10 при этом не трогаем, он обновится по TTL
+						await cacheService.RemoveAsync($"event:{@event.EventId}", stoppingToken);
+
 						_consumer.Commit(consumeResult);
 					}
 					catch (Exception ex)

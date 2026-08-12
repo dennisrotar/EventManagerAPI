@@ -103,7 +103,7 @@ builder.Services.AddHostedService<KafkaConsumer>();
 // ═══════════════════════════════════════════════════
 // Application & Infrastructure Layers
 // ═══════════════════════════════════════════════════
-builder.Services.AddApplicationServices();
+builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
 // ═══════════════════════════════════════════════════
