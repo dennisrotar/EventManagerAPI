@@ -10,8 +10,38 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Text.Json.Serialization;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using Serilog;
+using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ═══════════════════════════════════════════════════
+// Serilog (Структурированное логирование в JSON)
+// ═══════════════════════════════════════════════════
+builder.Host.UseSerilog((ctx, cfg) =>
+	cfg.ReadFrom.Configuration(ctx.Configuration)
+	   .WriteTo.Console(new CompactJsonFormatter()));
+
+// ═══════════════════════════════════════════════════
+// OpenTelemetry (Traces + Metrics)
+// ═══════════════════════════════════════════════════
+builder.Services.AddOpenTelemetry()
+	.ConfigureResource(r => r.AddService(
+		serviceName: builder.Configuration["ServiceName"]!))
+	.WithTracing(tracing => tracing
+		.AddAspNetCoreInstrumentation()
+		.AddHttpClientInstrumentation()
+		.AddEntityFrameworkCoreInstrumentation()
+		.AddOtlpExporter(o => o.Endpoint =
+			new Uri(builder.Configuration["Otlp:Endpoint"]!)))
+	.WithMetrics(metrics => metrics
+		.AddAspNetCoreInstrumentation()
+		.AddRuntimeInstrumentation()
+		.AddPrometheusExporter());
 
 // ═══════════════════════════════════════════════════
 // Framework Services
@@ -42,7 +72,6 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-// Настройка JWT Аутентификации (проверка токена от Users)
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var key = Encoding.UTF8.GetBytes(jwtSettings["Secret"]!);
 
@@ -63,12 +92,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
 	c.SwaggerDoc("v1", new OpenApiInfo { Title = "Events API", Version = "v1" });
-
 	c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
 	{
 		Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
@@ -111,7 +138,6 @@ builder.Services.AddInfrastructureServices(builder.Configuration);
 // ═══════════════════════════════════════════════════
 var app = builder.Build();
 
-// Применение миграций при старте
 using (var scope = app.Services.CreateScope())
 {
 	var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -123,12 +149,14 @@ using (var scope = app.Services.CreateScope())
 
 app.UseSwagger();
 app.UseSwaggerUI();
-
-// app.UseHttpsRedirection();
 app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Эндпоинт для скрейпинга метрик Prometheus
+app.MapPrometheusScrapingEndpoint();
+
 app.Run();
 
 public partial class Program { }
